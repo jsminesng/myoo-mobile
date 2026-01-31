@@ -229,7 +229,6 @@ const freeUpSpace = (targetSize) => {
     return dateA - dateB;
   });
 
-  let currentSize = JSON.stringify(entries).length;
   const entriesToKeep = [];
 
   // 최신 항목부터 유지하면서 용량 체크
