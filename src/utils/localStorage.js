@@ -239,7 +239,6 @@ const freeUpSpace = (targetSize) => {
 
     if (testSize <= targetSize) {
       entriesToKeep.unshift(sortedEntries[i]);
-      currentSize = testSize;
     } else {
       console.log(
         `Removing old entry to free up space: ${sortedEntries[i].date}`

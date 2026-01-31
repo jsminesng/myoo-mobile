@@ -10,7 +10,6 @@ import { getDiaryEntries } from "./utils/localStorage";
 
 function App() {
   const [inputValue, setInputValue] = useState("");
-  const [inputWidth, setInputWidth] = useState("100%");
   const [currentPage, setCurrentPage] = useState("input"); // 'input', 'feeling', 'note', 'upload', or 'detail'
   const [selectedWordIndex, setSelectedWordIndex] = useState(null); // 선택된 단어 박스의 인덱스
   const [isDrawing, setIsDrawing] = useState(false);
@@ -19,7 +18,7 @@ function App() {
   const [drawnFaceImage, setDrawnFaceImage] = useState(null);
   const [savedInputValue, setSavedInputValue] = useState(""); // 메인 페이지에서 입력한 단어 저장
   const [showLayerMessage, setShowLayerMessage] = useState(false); // "One more layer added!" 메시지 표시
-  const [bubbleLayout, setBubbleLayout] = useState([]); // 정적인 버블 위치/회전 정보
+  const [bubbleLayout] = useState([]); // 정적인 버블 위치/회전 정보
   const inputRef = useRef(null);
   const canvasRef = useRef(null);
   const fileInputRef = useRef(null);
