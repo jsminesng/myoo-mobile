@@ -160,6 +160,7 @@ function FeelingPage({
         {/* Next button */}
         <div className="next-button-section">
           <button
+            type="button"
             className="next-button"
             onClick={() => {
               // feeling 페이지를 떠날 때 그린 얼굴 이미지 저장

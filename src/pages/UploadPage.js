@@ -121,9 +121,10 @@ function UploadPage({
         {/* Next button */}
         <div className="next-button-section">
           <button
+            type="button"
             className="next-button"
             onClick={async () => {
-              // 새로운 단어 박스 생성
+              // 단어와 얼굴이 있으면 저장 후 메인으로, 없으면 그냥 메인으로
               if (savedInputValue && drawnFaceImage) {
                 const today = new Date();
                 const year = today.getFullYear();
@@ -131,19 +132,17 @@ function UploadPage({
                 const day = String(today.getDate()).padStart(2, "0");
                 const dateString = `${year}.${month}.${day}`;
 
-                // localStorage에 저장
                 try {
                   await saveDiaryEntry({
                     date: dateString,
                     word: savedInputValue,
-                    feeling: drawnFaceImage, // 이미 base64 형식
+                    feeling: drawnFaceImage,
                     note: noteValue || "",
-                    media: uploadedFile, // File 객체 (saveDiaryEntry에서 base64로 변환)
+                    media: uploadedFile,
                   });
                   console.log("Diary entry saved to localStorage");
                 } catch (error) {
                   console.error("Failed to save to localStorage:", error);
-                  // 에러가 발생해도 UI는 계속 진행
                 }
 
                 const newWord = {
@@ -154,12 +153,11 @@ function UploadPage({
                   uploadedFile: uploadedFile,
                   date: dateString,
                 };
-                setWords((prev) => {
-                  return [...prev, newWord];
-                });
-                // "One more layer added!" 메시지 표시하고 input 페이지로 이동
-                // 상태 초기화는 App.js의 useEffect에서 5초 후 처리됨
+                setWords((prev) => [...prev, newWord]);
                 setShowLayerMessage(true);
+                setCurrentPage("input");
+              } else {
+                // 조건 미충족이어도 메인으로 돌아가기 (갇히지 않도록)
                 setCurrentPage("input");
               }
             }}

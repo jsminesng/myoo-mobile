@@ -73,6 +73,7 @@ function NotePage({ noteValue, setNoteValue, setCurrentPage }) {
         {/* Next button */}
         <div className="next-button-section">
           <button
+            type="button"
             className="next-button"
             onClick={() => setCurrentPage("upload")}
           >
@@ -85,8 +86,3 @@ function NotePage({ noteValue, setNoteValue, setCurrentPage }) {
 }
 
 export default NotePage;
-
-
-
-
-

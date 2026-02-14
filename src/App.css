@@ -700,6 +700,12 @@
   display: flex;
   justify-content: center;
   padding: 0 20px;
+  z-index: 500;
+  pointer-events: none; /* section은 클릭 통과, 버튼만 받음 */
+}
+
+.next-button-section .next-button {
+  pointer-events: auto;
 }
 
 .next-button {
@@ -715,6 +721,8 @@
   cursor: pointer;
   box-shadow: 0 0 5.7px 0 #ffffc6;
   transition: transform 0.2s ease;
+  position: relative;
+  z-index: 501;
 }
 
 .next-button:hover {
