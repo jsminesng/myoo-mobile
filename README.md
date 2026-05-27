@@ -1,70 +1,74 @@
-# Getting Started with Create React App
+# Diary App
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+Emotion-based diary web app built with React.
 
-## Available Scripts
+## Tech Stack
 
-In the project directory, you can run:
+- React (CRA)
+- CSS
+- Supabase (Database, Storage, Edge Functions)
+- Gemini API (called from Supabase Edge Function)
 
-### `npm start`
+## Features
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+- Save diary entries with word, feeling image, note, and media
+- View diary entries in bubbles and detail screen
+- Chat assistant with 3 modes:
+  - Clear advice
+  - Supportive messages
+  - Write apologies for me
+- Selected diary context is passed into chat
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+## Project Structure
 
-### `npm test`
+- `src/pages`: screen-level components
+- `src/components`: UI components
+- `src/utils/diaryStorage.js`: diary CRUD abstraction (Supabase first, local fallback)
+- `src/utils/chatApi.js`: Edge Function chat invocation
+- `supabase/`: SQL schema + function source
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+## Environment Variables
 
-### `npm run build`
+Create `.env.local` in project root:
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+```bash
+REACT_APP_SUPABASE_URL=https://<your-project-ref>.supabase.co
+REACT_APP_SUPABASE_ANON_KEY=<your_supabase_anon_key>
+REACT_APP_SUPABASE_DIARY_TABLE=diary_entries
+REACT_APP_SUPABASE_MEDIA_BUCKET=diary-media
+```
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+See `.env.example` for reference.
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+## Run Locally
 
-### `npm run eject`
+```bash
+npm install
+npm start
+```
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+Open [http://localhost:3000](http://localhost:3000).
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+## Build
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+```bash
+npm run build
+```
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+## Supabase Setup
 
-## Learn More
+Detailed setup is in `supabase/README.md`.
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+Quick flow:
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+1. Create Supabase project
+2. Run `supabase/schema.sql` (or migration + `supabase db push`)
+3. Create storage bucket `diary-media`
+4. Deploy function `diary-chat`
+5. Set function secret `GEMINI_API_KEY`
 
-### Code Splitting
+## Security Note
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
-
-### Analyzing the Bundle Size
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
-
-### Making a Progressive Web App
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
-
-### Advanced Configuration
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
-
-### Deployment
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
-
-### `npm run build` fails to minify
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+- Do not put Gemini API keys in frontend env vars.
+- Keep Gemini key only in Supabase function secret:
+  - `supabase secrets set GEMINI_API_KEY=<your_key>`

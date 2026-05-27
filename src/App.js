@@ -5,8 +5,17 @@ import NotePage from "./pages/NotePage";
 import UploadPage from "./pages/UploadPage";
 import DetailPage from "./pages/DetailPage";
 import ChatPage from "./pages/ChatPage";
+import AuthPage from "./pages/AuthPage";
+import OnboardingPage from "./pages/OnboardingPage";
 import WordBubbles from "./components/WordBubbles";
 import { getDiaryEntries } from "./utils/diaryStorage";
+import { isSupabaseConfigured } from "./utils/supabaseClient";
+import {
+  getCurrentUser,
+  getProfile,
+  onAuthStateChange,
+  signOutUser,
+} from "./utils/auth";
 
 function App() {
   const [inputValue, setInputValue] = useState("");
@@ -19,40 +28,122 @@ function App() {
   const [savedInputValue, setSavedInputValue] = useState(""); // 메인 페이지에서 입력한 단어 저장
   const [showLayerMessage, setShowLayerMessage] = useState(false); // "One more layer added!" 메시지 표시
   const [bubbleLayout] = useState([]); // 정적인 버블 위치/회전 정보
+  const [authLoading, setAuthLoading] = useState(isSupabaseConfigured);
+  const [user, setUser] = useState(null);
+  const [profile, setProfile] = useState(null);
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const inputRef = useRef(null);
   const canvasRef = useRef(null);
   const fileInputRef = useRef(null);
 
   const [words, setWords] = useState([]);
 
-  // localStorage에서 다이어리 항목 불러오기
   useEffect(() => {
+    if (!isSupabaseConfigured) return;
+
+    let isMounted = true;
+
+    const initializeAuth = async () => {
+      try {
+        const currentUser = await getCurrentUser();
+        if (!isMounted) return;
+        setUser(currentUser);
+      } catch (error) {
+        console.error("Failed to initialize auth:", error);
+      } finally {
+        if (isMounted) setAuthLoading(false);
+      }
+    };
+
+    initializeAuth();
+
+    const { data } = onAuthStateChange((nextUser) => {
+      if (!isMounted) return;
+      setUser(nextUser);
+      if (!nextUser) {
+        setProfile(null);
+        setWords([]);
+        setIsProfileModalOpen(false);
+      }
+    });
+
+    return () => {
+      isMounted = false;
+      data.subscription.unsubscribe();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isSupabaseConfigured || !user?.id) {
+      setProfile(null);
+      setProfileLoading(false);
+      return;
+    }
+
+    let isMounted = true;
+    const loadProfile = async () => {
+      try {
+        setProfileLoading(true);
+        const profileData = await getProfile(user.id);
+        if (isMounted) {
+          setProfile(profileData);
+        }
+      } catch (error) {
+        console.error("Failed to load profile:", error);
+      } finally {
+        if (isMounted) {
+          setProfileLoading(false);
+        }
+      }
+    };
+    loadProfile();
+    return () => {
+      isMounted = false;
+    };
+  }, [user]);
+
+  // 사용자별 다이어리 항목 불러오기
+  useEffect(() => {
+    if (isSupabaseConfigured && !user) {
+      setWords([]);
+      return;
+    }
+
     let isMounted = true;
 
     const loadEntries = async () => {
-      const entries = await getDiaryEntries();
-      if (!isMounted || entries.length === 0) return;
+      try {
+        const entries = await getDiaryEntries();
+        if (!isMounted) return;
+        if (entries.length === 0) {
+          setWords([]);
+          return;
+        }
 
-      // 저장소 항목을 words 형식으로 변환
-      const loadedWords = entries.map((entry) => ({
-        text: entry.word || "",
-        icon: !!entry.feeling,
-        faceImage: entry.feeling || null,
-        note: entry.note || "",
-        uploadedFile: entry.media || null,
-        date: entry.date || "",
-        id: entry.id,
-        mediaType: entry.mediaType || null,
-      }));
+        // 저장소 항목을 words 형식으로 변환
+        const loadedWords = entries.map((entry) => ({
+          text: entry.word || "",
+          icon: !!entry.feeling,
+          faceImage: entry.feeling || null,
+          note: entry.note || "",
+          uploadedFile: entry.media || null,
+          date: entry.date || "",
+          id: entry.id,
+          mediaType: entry.mediaType || null,
+        }));
 
-      setWords(loadedWords);
+        setWords(loadedWords);
+      } catch (error) {
+        console.error("Failed to load diary entries:", error);
+      }
     };
 
     loadEntries();
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [user]);
 
   // Canvas 초기화
   useEffect(() => {
@@ -107,6 +198,53 @@ function App() {
     }
   }, [showLayerMessage]);
 
+  if (isSupabaseConfigured && authLoading) {
+    return (
+      <div className="App">
+        <div className="main-container">
+          <div className="question-section" style={{ marginTop: "200px" }}>
+            <div className="question-text">Loading...</div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (isSupabaseConfigured && !user) {
+    return <AuthPage />;
+  }
+
+  if (isSupabaseConfigured && user && profileLoading) {
+    return (
+      <div className="App">
+        <div className="main-container">
+          <div className="question-section" style={{ marginTop: "200px" }}>
+            <div className="question-text">Loading...</div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (
+    isSupabaseConfigured &&
+    user &&
+    (!profile || !profile.onboarding_completed)
+  ) {
+    return (
+      <OnboardingPage
+        user={user}
+        onComplete={(nextProfile) => {
+          setProfile(nextProfile);
+        }}
+      />
+    );
+  }
+
+  const profileId = user?.email ? `@${user.email.split("@")[0]}` : "@guest";
+  const profileName = profile?.display_name || "User";
+  const greetingName = profile?.display_name || user?.email?.split("@")[0] || "there";
+
   if (currentPage === "feeling") {
     return (
       <FeelingPage
@@ -158,6 +296,7 @@ function App() {
       <ChatPage
         setCurrentPage={setCurrentPage}
         selectedDiaryEntry={selectedWord}
+        username={greetingName}
       />
     );
   }
@@ -241,7 +380,12 @@ function App() {
       <div className="main-container">
         {/* Header */}
         <div className="header">
-          <div className="settings-icon">
+          <button
+            type="button"
+            className="settings-icon"
+            onClick={() => setIsProfileModalOpen(true)}
+            aria-label="Open profile"
+          >
             <svg
               width="24"
               height="24"
@@ -255,7 +399,7 @@ function App() {
               <circle cx="12" cy="12" r="3" />
               <path d="M12 2v4m0 12v4M5.64 5.64l2.83 2.83m7.06 7.06l2.83 2.83M2 12h4m12 0h4M5.64 18.36l2.83-2.83m7.06-7.06l2.83-2.83" />
             </svg>
-          </div>
+          </button>
         </div>
 
         {/* Chat bubble */}
@@ -272,7 +416,7 @@ function App() {
         <div className="question-section">
           <div className="question-text">
             <span className="greeting">
-              Hi <span className="highlight">Yonoo</span>!
+              Hi <span className="highlight">{greetingName}</span>!
             </span>
           </div>
           <div className="question-text">What's one</div>
@@ -335,6 +479,74 @@ function App() {
           setInputValue={setInputValue}
           inputRef={inputRef}
         />
+
+        {isProfileModalOpen && (
+          <div
+            className="profile-modal-overlay"
+            onClick={() => setIsProfileModalOpen(false)}
+          >
+            <div
+              className="profile-modal"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="profile-modal-header">
+                <div className="profile-modal-title">Profile</div>
+                <button
+                  type="button"
+                  className="profile-close-button"
+                  onClick={() => setIsProfileModalOpen(false)}
+                >
+                  x
+                </button>
+              </div>
+
+              <div className="profile-field">
+                <div className="profile-label">ID</div>
+                <div className="profile-value-row">
+                  <div className="profile-value">{profileId}</div>
+                </div>
+              </div>
+
+              <div className="profile-field">
+                <div className="profile-label">Password</div>
+                <div className="profile-value-row">
+                  <div className="profile-value">********</div>
+                  <button type="button" className="profile-edit-button">
+                    ✎
+                  </button>
+                </div>
+              </div>
+
+              <div className="profile-field">
+                <div className="profile-label">Name</div>
+                <div className="profile-value-row">
+                  <div className="profile-value">{profileName}</div>
+                  <button type="button" className="profile-edit-button">
+                    ✎
+                  </button>
+                </div>
+              </div>
+
+              {isSupabaseConfigured && user ? (
+                <button
+                  type="button"
+                  className="profile-logout-button"
+                  onClick={async () => {
+                    try {
+                      await signOutUser();
+                      setCurrentPage("input");
+                      setIsProfileModalOpen(false);
+                    } catch (error) {
+                      console.error("Failed to sign out:", error);
+                    }
+                  }}
+                >
+                  Logout
+                </button>
+              ) : null}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

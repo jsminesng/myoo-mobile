@@ -9,6 +9,28 @@ import { isSupabaseConfigured, supabase } from "./supabaseClient";
 const DIARY_TABLE = process.env.REACT_APP_SUPABASE_DIARY_TABLE || "diary_entries";
 const MEDIA_BUCKET = process.env.REACT_APP_SUPABASE_MEDIA_BUCKET || "diary-media";
 
+const getSupabaseErrorSummary = (error) => {
+  if (!error) return "Unknown error";
+  if (typeof error === "string") return error;
+  const parts = [
+    error.message ? `message=${error.message}` : null,
+    error.code ? `code=${error.code}` : null,
+    error.details ? `details=${error.details}` : null,
+    error.hint ? `hint=${error.hint}` : null,
+  ].filter(Boolean);
+  return parts.length ? parts.join(" | ") : JSON.stringify(error);
+};
+
+const getCurrentUserId = async () => {
+  if (!supabase) return null;
+  const {
+    data: { user },
+    error,
+  } = await supabase.auth.getUser();
+  if (error) throw error;
+  return user?.id ?? null;
+};
+
 const mapRowToEntry = (row) => ({
   id: row.id?.toString() || Date.now().toString(),
   date: row.date || "",
@@ -21,9 +43,13 @@ const mapRowToEntry = (row) => ({
 
 const uploadMediaIfNeeded = async (file, entryId) => {
   if (!file || !supabase) return { mediaUrl: null, mediaType: null };
+  const userId = await getCurrentUserId();
+  if (!userId) {
+    throw new Error("You must be signed in to upload media.");
+  }
 
   const sanitizedName = (file.name || "media-file").replace(/\s+/g, "-");
-  const filePath = `${entryId}/${Date.now()}-${sanitizedName}`;
+  const filePath = `${userId}/${entryId}/${Date.now()}-${sanitizedName}`;
 
   const { error: uploadError } = await supabase.storage
     .from(MEDIA_BUCKET)
@@ -34,6 +60,18 @@ const uploadMediaIfNeeded = async (file, entryId) => {
     });
 
   if (uploadError) {
+    const message = uploadError?.message || "";
+    const isBucketMissing =
+      message.toLowerCase().includes("bucket not found") ||
+      uploadError?.statusCode === "404";
+
+    if (isBucketMissing) {
+      console.warn(
+        `Storage bucket '${MEDIA_BUCKET}' not found. Saving diary entry without media.`,
+      );
+      return { mediaUrl: null, mediaType: null };
+    }
+
     throw uploadError;
   }
 
@@ -51,6 +89,11 @@ export const saveDiaryEntry = async (entry) => {
   }
 
   try {
+    const userId = await getCurrentUserId();
+    if (!userId) {
+      throw new Error("User is not authenticated.");
+    }
+
     const entryId =
       entry.id ||
       (typeof crypto !== "undefined" && crypto.randomUUID
@@ -67,6 +110,7 @@ export const saveDiaryEntry = async (entry) => {
       note: entry.note || "",
       media_url: mediaUrl,
       media_type: mediaType,
+      user_id: userId,
     };
 
     const { data, error } = await supabase
@@ -79,8 +123,11 @@ export const saveDiaryEntry = async (entry) => {
 
     return mapRowToEntry(data);
   } catch (error) {
-    console.error("Supabase save failed. Falling back to localStorage.", error);
-    return saveLocalDiaryEntry(entry);
+    console.error(
+      "Supabase save failed.",
+      getSupabaseErrorSummary(error),
+    );
+    throw error;
   }
 };
 
@@ -90,16 +137,23 @@ export const getDiaryEntries = async () => {
   }
 
   try {
+    const userId = await getCurrentUserId();
+    if (!userId) return [];
+
     const { data, error } = await supabase
       .from(DIARY_TABLE)
       .select("*")
+      .eq("user_id", userId)
       .order("created_at", { ascending: false });
 
     if (error) throw error;
     return (data || []).map(mapRowToEntry);
   } catch (error) {
-    console.error("Supabase read failed. Falling back to localStorage.", error);
-    return getLocalDiaryEntries();
+    console.error(
+      "Supabase read failed.",
+      getSupabaseErrorSummary(error),
+    );
+    return [];
   }
 };
 
@@ -109,12 +163,21 @@ export const deleteDiaryEntry = async (id) => {
   }
 
   try {
-    const { error } = await supabase.from(DIARY_TABLE).delete().eq("id", id);
+    const userId = await getCurrentUserId();
+    if (!userId) return [];
+    const { error } = await supabase
+      .from(DIARY_TABLE)
+      .delete()
+      .eq("id", id)
+      .eq("user_id", userId);
     if (error) throw error;
     return getDiaryEntries();
   } catch (error) {
-    console.error("Supabase delete failed. Falling back to localStorage.", error);
-    return deleteLocalDiaryEntry(id);
+    console.error(
+      "Supabase delete failed.",
+      getSupabaseErrorSummary(error),
+    );
+    throw error;
   }
 };
 
@@ -125,11 +188,19 @@ export const clearDiaryEntries = async () => {
   }
 
   try {
-    const { error } = await supabase.from(DIARY_TABLE).delete().neq("id", "");
+    const userId = await getCurrentUserId();
+    if (!userId) return;
+    const { error } = await supabase
+      .from(DIARY_TABLE)
+      .delete()
+      .eq("user_id", userId);
     if (error) throw error;
   } catch (error) {
-    console.error("Supabase clear failed. Falling back to localStorage.", error);
-    clearLocalDiaryEntries();
+    console.error(
+      "Supabase clear failed.",
+      getSupabaseErrorSummary(error),
+    );
+    throw error;
   }
 };
 

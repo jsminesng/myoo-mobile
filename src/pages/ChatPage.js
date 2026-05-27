@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { getDiaryEntries } from "../utils/diaryStorage";
 import { invokeDiaryChat } from "../utils/chatApi";
 
-function ChatPage({ setCurrentPage, selectedDiaryEntry }) {
+function ChatPage({ setCurrentPage, selectedDiaryEntry, username = "there" }) {
   const [diaryEntries, setDiaryEntries] = useState([]);
   const [selectedEntryId, setSelectedEntryId] = useState(null);
 
@@ -17,7 +17,7 @@ function ChatPage({ setCurrentPage, selectedDiaryEntry }) {
         return {
           id: 1,
           type: "ai",
-          content: `Hi Yonoo!\nI see you're looking at your diary entry about "${diaryWord}"${
+          content: `Hi ${username}!\nI see you're looking at your diary entry about "${diaryWord}"${
             diaryDate ? ` from ${diaryDate}` : ""
           }.\nWhat do you need today?`,
           suggestions: [
@@ -32,7 +32,7 @@ function ChatPage({ setCurrentPage, selectedDiaryEntry }) {
     return {
       id: 1,
       type: "ai",
-      content: "Hi Yonoo!\nWhat do you need today?",
+      content: `Hi ${username}!\nWhat do you need today?`,
       suggestions: [
         "Clear advice",
         "Supportive messages",

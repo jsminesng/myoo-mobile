@@ -133,7 +133,7 @@ function UploadPage({
                 const dateString = `${year}.${month}.${day}`;
 
                 try {
-                  await saveDiaryEntry({
+                  const savedEntry = await saveDiaryEntry({
                     date: dateString,
                     word: savedInputValue,
                     feeling: drawnFaceImage,
@@ -141,21 +141,24 @@ function UploadPage({
                     media: uploadedFile,
                   });
                   console.log("Diary entry saved");
+                  const newWord = {
+                    text: savedEntry.word || savedInputValue,
+                    icon: true,
+                    faceImage: savedEntry.feeling || drawnFaceImage,
+                    note: savedEntry.note || noteValue,
+                    uploadedFile: savedEntry.media || null,
+                    date: savedEntry.date || dateString,
+                    id: savedEntry.id,
+                    mediaType: savedEntry.mediaType || null,
+                  };
+                  setWords((prev) => [...prev, newWord]);
+                  setShowLayerMessage(true);
+                  setCurrentPage("input");
                 } catch (error) {
                   console.error("Failed to save diary entry:", error);
+                  alert("일기 저장에 실패했어요. Supabase 설정을 확인해주세요.");
+                  return;
                 }
-
-                const newWord = {
-                  text: savedInputValue,
-                  icon: true,
-                  faceImage: drawnFaceImage,
-                  note: noteValue,
-                  uploadedFile: uploadedFile,
-                  date: dateString,
-                };
-                setWords((prev) => [...prev, newWord]);
-                setShowLayerMessage(true);
-                setCurrentPage("input");
               } else {
                 // 조건 미충족이어도 메인으로 돌아가기 (갇히지 않도록)
                 setCurrentPage("input");
