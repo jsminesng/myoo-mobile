@@ -1,5 +1,5 @@
 import React from "react";
-import { saveDiaryEntry } from "../utils/localStorage";
+import { saveDiaryEntry } from "../utils/diaryStorage";
 
 function UploadPage({
   fileInputRef,
@@ -140,9 +140,9 @@ function UploadPage({
                     note: noteValue || "",
                     media: uploadedFile,
                   });
-                  console.log("Diary entry saved to localStorage");
+                  console.log("Diary entry saved");
                 } catch (error) {
-                  console.error("Failed to save to localStorage:", error);
+                  console.error("Failed to save diary entry:", error);
                 }
 
                 const newWord = {

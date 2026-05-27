@@ -6,7 +6,7 @@ import UploadPage from "./pages/UploadPage";
 import DetailPage from "./pages/DetailPage";
 import ChatPage from "./pages/ChatPage";
 import WordBubbles from "./components/WordBubbles";
-import { getDiaryEntries } from "./utils/localStorage";
+import { getDiaryEntries } from "./utils/diaryStorage";
 
 function App() {
   const [inputValue, setInputValue] = useState("");
@@ -27,23 +27,31 @@ function App() {
 
   // localStorage에서 다이어리 항목 불러오기
   useEffect(() => {
-    const entries = getDiaryEntries();
-    if (entries.length > 0) {
-      // localStorage 항목을 words 형식으로 변환
+    let isMounted = true;
+
+    const loadEntries = async () => {
+      const entries = await getDiaryEntries();
+      if (!isMounted || entries.length === 0) return;
+
+      // 저장소 항목을 words 형식으로 변환
       const loadedWords = entries.map((entry) => ({
         text: entry.word || "",
-        icon: !!entry.feeling, // feeling이 있으면 icon 표시
-        faceImage: entry.feeling || null, // base64 이미지
+        icon: !!entry.feeling,
+        faceImage: entry.feeling || null,
         note: entry.note || "",
-        uploadedFile: entry.media || null, // base64 문자열
+        uploadedFile: entry.media || null,
         date: entry.date || "",
-        id: entry.id, // 나중에 사용할 수 있도록 id 저장
+        id: entry.id,
         mediaType: entry.mediaType || null,
       }));
 
-      // localStorage에서 불러온 항목으로 words 설정
       setWords(loadedWords);
-    }
+    };
+
+    loadEntries();
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   // Canvas 초기화

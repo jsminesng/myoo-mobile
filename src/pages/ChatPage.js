@@ -1,10 +1,8 @@
 import React, { useState, useRef, useEffect } from "react";
-import { GoogleGenerativeAI } from "@google/generative-ai";
-import { getDiaryEntries } from "../utils/localStorage";
+import { getDiaryEntries } from "../utils/diaryStorage";
+import { invokeDiaryChat } from "../utils/chatApi";
 
 function ChatPage({ setCurrentPage, selectedDiaryEntry }) {
-  const apiKey = process.env.REACT_APP_GEMINI_API_KEY;
-  const genAI = apiKey ? new GoogleGenerativeAI(apiKey) : null;
   const [diaryEntries, setDiaryEntries] = useState([]);
   const [selectedEntryId, setSelectedEntryId] = useState(null);
 
@@ -51,41 +49,52 @@ function ChatPage({ setCurrentPage, selectedDiaryEntry }) {
 
   // Load diary entries on mount
   useEffect(() => {
-    const entries = getDiaryEntries();
-    setDiaryEntries(entries);
+    let isMounted = true;
 
-    // 선택된 일기가 있으면 그것을 사용, 없으면 가장 최근 항목 선택
-    if (selectedDiaryEntry) {
-      // selectedDiaryEntry의 id와 일치하는 항목 찾기
-      if (selectedDiaryEntry.id) {
-        const matchingEntry = entries.find(
-          (entry) => entry.id === selectedDiaryEntry.id
-        );
-        if (matchingEntry) {
-          setSelectedEntryId(matchingEntry.id);
+    const loadEntries = async () => {
+      const entries = await getDiaryEntries();
+      if (!isMounted) return;
+      setDiaryEntries(entries);
+
+      // 선택된 일기가 있으면 그것을 사용, 없으면 가장 최근 항목 선택
+      if (selectedDiaryEntry) {
+        if (selectedDiaryEntry.id) {
+          const matchingEntry = entries.find(
+            (entry) => entry.id === selectedDiaryEntry.id,
+          );
+          if (matchingEntry) {
+            setSelectedEntryId(matchingEntry.id);
+            return;
+          }
         }
-      } else {
-        // id가 없으면 word로 찾기
+
         const matchingByWord = entries.find(
-          (entry) => entry.word === selectedDiaryEntry.text
+          (entry) => entry.word === selectedDiaryEntry.text,
         );
         if (matchingByWord) {
           setSelectedEntryId(matchingByWord.id);
+          return;
         }
       }
-    } else if (entries.length > 0) {
-      // 선택된 일기가 없으면 가장 최근 항목 선택
-      const sortedEntries = [...entries].sort((a, b) => {
-        const dateA = a.date
-          ? new Date(a.date.replace(/\./g, "-"))
-          : new Date(0);
-        const dateB = b.date
-          ? new Date(b.date.replace(/\./g, "-"))
-          : new Date(0);
-        return dateB - dateA;
-      });
-      setSelectedEntryId(sortedEntries[0].id);
-    }
+
+      if (entries.length > 0) {
+        const sortedEntries = [...entries].sort((a, b) => {
+          const dateA = a.date
+            ? new Date(a.date.replace(/\./g, "-"))
+            : new Date(0);
+          const dateB = b.date
+            ? new Date(b.date.replace(/\./g, "-"))
+            : new Date(0);
+          return dateB - dateA;
+        });
+        setSelectedEntryId(sortedEntries[0].id);
+      }
+    };
+
+    loadEntries();
+    return () => {
+      isMounted = false;
+    };
   }, [selectedDiaryEntry]);
 
   const scrollToBottom = () => {
@@ -128,36 +137,12 @@ function ChatPage({ setCurrentPage, selectedDiaryEntry }) {
     setMessages((prev) => [...prev, loadingMessage]);
 
     try {
-      if (!genAI) {
-        throw new Error("API key not configured");
-      }
-
-      const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
-
-      // Include diary context if available
       const selectedEntry = getSelectedEntry();
-      let prompt = currentInput;
-
-      if (selectedEntry && (selectedEntry.note || selectedEntry.word)) {
-        const diaryContext = `Diary Entry:
-Date: ${selectedEntry.date || ""}
-Word: ${selectedEntry.word || ""}
-Note: ${selectedEntry.note || ""}
-
-User's question: ${currentInput}
-
-IMPORTANT: Keep your response SHORT (2-3 sentences maximum). Do NOT use any markdown formatting like **, #, -, or bullet points. Write in plain text only, as if you're having a casual conversation. Respond to the user's question, considering the context from their diary entry.`;
-        prompt = diaryContext;
-      } else {
-        // Add instructions even when no diary entry
-        prompt = `${currentInput}
-
-IMPORTANT: Keep your response SHORT (2-3 sentences maximum). Do NOT use any markdown formatting like **, #, -, or bullet points. Write in plain text only.`;
-      }
-
-      const result = await model.generateContent(prompt);
-      const response = await result.response;
-      const text = response.text();
+      const text = await invokeDiaryChat({
+        mode: "free_chat",
+        userMessage: currentInput,
+        diaryEntry: selectedEntry,
+      });
 
       // 로딩 메시지 제거하고 응답 추가
       setMessages((prev) => {
@@ -178,7 +163,7 @@ IMPORTANT: Keep your response SHORT (2-3 sentences maximum). Do NOT use any mark
       });
       scrollToBottom();
     } catch (error) {
-      console.error("Error calling Gemini API:", error);
+      console.error("Error calling diary-chat function:", error);
       // 에러 메시지 표시
       setMessages((prev) => {
         const filtered = prev.filter((msg) => !msg.isLoading);
@@ -188,7 +173,7 @@ IMPORTANT: Keep your response SHORT (2-3 sentences maximum). Do NOT use any mark
             id: Date.now() + 2,
             type: "ai",
             content:
-              "Sorry, I'm having trouble connecting. Please check your API key.",
+              "Sorry, I'm having trouble connecting to the AI service right now.",
             suggestions: [
               "Clear advice",
               "Supportive messages",
@@ -201,53 +186,11 @@ IMPORTANT: Keep your response SHORT (2-3 sentences maximum). Do NOT use any mark
     }
   };
 
-  // Create prompt based on button type and diary entry
-  const createPrompt = (buttonType, diaryEntry) => {
-    const diaryText = diaryEntry?.note || "";
-    const diaryWord = diaryEntry?.word || "";
-    const diaryDate = diaryEntry?.date || "";
-
-    const hasDiaryContent = diaryText || diaryWord;
-    const context = hasDiaryContent
-      ? `Diary Entry:
-Date: ${diaryDate}
-Word: ${diaryWord}
-Note: ${diaryText}`
-      : "";
-
-    const baseInstructions = `IMPORTANT: Keep your response SHORT (2-3 sentences maximum). Do NOT use any markdown formatting like **, #, -, or bullet points. Write in plain text only, as if you're having a casual conversation.`;
-
-    switch (buttonType) {
-      case "Clear advice":
-        return hasDiaryContent
-          ? `${context}
-
-${baseInstructions}
-Based on this diary entry, provide clear, practical advice in 2-3 short sentences. Be direct and helpful.`
-          : `${baseInstructions}
-The user is asking for clear, practical advice. Provide helpful guidance in 2-3 short sentences.`;
-
-      case "Supportive messages":
-        return hasDiaryContent
-          ? `${context}
-
-${baseInstructions}
-Based on this diary entry, provide warm, empathetic, and supportive messages in 2-3 short sentences. Be understanding and encouraging.`
-          : `${baseInstructions}
-The user is looking for support and encouragement. Provide warm, empathetic messages in 2-3 short sentences.`;
-
-      case "Write apologies for me":
-        return hasDiaryContent
-          ? `${context}
-
-${baseInstructions}
-Based on this diary entry, write a sincere and thoughtful apology message. Keep it short (2-3 sentences) and genuine.`
-          : `${baseInstructions}
-The user needs help writing an apology message. Write a short, sincere apology (2-3 sentences) or ask what situation they need to apologize for.`;
-
-      default:
-        return context || "How can I help you today?";
-    }
+  const getModeFromSuggestion = (suggestion) => {
+    if (suggestion === "Clear advice") return "clear_advice";
+    if (suggestion === "Supportive messages") return "supportive_messages";
+    if (suggestion === "Write apologies for me") return "write_apologies";
+    return "free_chat";
   };
 
   // Handle button click - trigger API call with specific prompt type
@@ -276,16 +219,11 @@ The user needs help writing an apology message. Write a short, sincere apology (
     setMessages((prev) => [...prev, loadingMessage]);
 
     try {
-      if (!genAI) {
-        throw new Error("API key not configured");
-      }
-
-      const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
-      const prompt = createPrompt(suggestion, selectedEntry);
-
-      const result = await model.generateContent(prompt);
-      const response = await result.response;
-      const text = response.text();
+      const text = await invokeDiaryChat({
+        mode: getModeFromSuggestion(suggestion),
+        userMessage: suggestion,
+        diaryEntry: selectedEntry,
+      });
 
       // Remove loading message and add response
       setMessages((prev) => {
@@ -306,7 +244,7 @@ The user needs help writing an apology message. Write a short, sincere apology (
       });
       scrollToBottom();
     } catch (error) {
-      console.error("Error calling Gemini API:", error);
+      console.error("Error calling diary-chat function:", error);
       // Error message
       setMessages((prev) => {
         const filtered = prev.filter((msg) => !msg.isLoading);
@@ -316,7 +254,7 @@ The user needs help writing an apology message. Write a short, sincere apology (
             id: Date.now() + 2,
             type: "ai",
             content:
-              "Sorry, I'm having trouble connecting. Please check your API key.",
+              "Sorry, I'm having trouble connecting to the AI service right now.",
             suggestions: [
               "Clear advice",
               "Supportive messages",
