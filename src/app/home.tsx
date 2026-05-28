@@ -20,11 +20,6 @@ const SCREEN_HEIGHT = Dimensions.get("window").height;
 const BUBBLE_ZONE_HEIGHT = 260;
 const BUBBLE_GAP = 10;
 
-const seededRandom = (seed: number) => {
-  const value = Math.sin(seed) * 10000;
-  return value - Math.floor(value);
-};
-
 export default function HomeScreen() {
   const [name, setName] = useState("there");
   const [entries, setEntries] = useState<DiaryEntry[]>([]);
@@ -51,21 +46,10 @@ export default function HomeScreen() {
   }, []);
 
   const suggestedWords = useMemo(() => {
-    const words = entries
+    return entries
       .map((entry) => entry.word?.trim())
       .filter((word): word is string => Boolean(word))
       .slice(0, 10);
-    if (words.length > 0) return words;
-    return [
-      "LA",
-      "Pizzaa",
-      "Paris",
-      "Watermelon",
-      "Movie",
-      "Rain",
-      "Walk",
-      "Smile",
-    ];
   }, [entries]);
 
   const bubbleWords = suggestedWords.slice(0, 10);
@@ -91,14 +75,12 @@ export default function HomeScreen() {
       const minTop = 10;
       const maxLeft = Math.max(minLeft, SCREEN_WIDTH - widthEstimate - 10);
       const maxTop = Math.max(minTop, BUBBLE_ZONE_HEIGHT - heightEstimate - 8);
-      const rotate = -29 + seededRandom(index * 19 + word.length * 13) * 22;
+      const rotate = -29 + Math.random() * 22;
       let placed = false;
 
       for (let attempt = 0; attempt < 48; attempt += 1) {
-        const leftSeed = index * 61 + word.length * 7 + attempt * 17;
-        const topSeed = index * 37 + word.length * 13 + attempt * 23;
-        const left = minLeft + seededRandom(leftSeed) * (maxLeft - minLeft);
-        const top = minTop + seededRandom(topSeed) * (maxTop - minTop);
+        const left = minLeft + Math.random() * (maxLeft - minLeft);
+        const top = minTop + Math.random() * (maxTop - minTop);
 
         const overlaps = placedRects.some((rect) => {
           const separated =
