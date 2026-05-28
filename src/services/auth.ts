@@ -5,6 +5,11 @@ const PROFILES_TABLE = "profiles";
 export const getCurrentUser = async () => {
   if (!isSupabaseConfigured || !supabase) return null;
   const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  if (session?.user) return session.user;
+
+  const {
     data: { user },
     error,
   } = await supabase.auth.getUser();
