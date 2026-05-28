@@ -1,8 +1,12 @@
-import { useMemo, useState, useEffect } from "react";
+import { getCurrentUser, getProfile, signOutUser } from "@/services/auth";
+import { DiaryEntry, getDiaryEntries } from "@/services/diaryStorage";
+import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
+import { useEffect, useMemo, useState } from "react";
 import {
   Animated,
   Dimensions,
+  Easing,
   Pressable,
   SafeAreaView,
   StyleSheet,
@@ -10,11 +14,9 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
-import { getProfile, getCurrentUser, signOutUser } from "@/services/auth";
-import { DiaryEntry, getDiaryEntries } from "@/services/diaryStorage";
 
 const SCREEN_WIDTH = Dimensions.get("window").width;
+const SCREEN_HEIGHT = Dimensions.get("window").height;
 const BUBBLE_ZONE_HEIGHT = 260;
 const BUBBLE_GAP = 10;
 
@@ -54,14 +56,33 @@ export default function HomeScreen() {
       .filter((word): word is string => Boolean(word))
       .slice(0, 10);
     if (words.length > 0) return words;
-    return ["LA", "Pizzaa", "Paris", "Watermelon", "Movie", "Rain", "Walk", "Smile"];
+    return [
+      "LA",
+      "Pizzaa",
+      "Paris",
+      "Watermelon",
+      "Movie",
+      "Rain",
+      "Walk",
+      "Smile",
+    ];
   }, [entries]);
 
   const bubbleWords = suggestedWords.slice(0, 10);
 
   const bubbleItems = useMemo(() => {
-    const placedRects: Array<{ left: number; top: number; width: number; height: number }> = [];
-    const items: Array<{ word: string; left: number; top: number; rotate: number }> = [];
+    const placedRects: Array<{
+      left: number;
+      top: number;
+      width: number;
+      height: number;
+    }> = [];
+    const items: Array<{
+      word: string;
+      left: number;
+      top: number;
+      rotate: number;
+    }> = [];
 
     bubbleWords.forEach((word, index) => {
       const widthEstimate = Math.max(108, Math.min(236, word.length * 24 + 64));
@@ -89,7 +110,12 @@ export default function HomeScreen() {
         });
 
         if (!overlaps) {
-          placedRects.push({ left, top, width: widthEstimate, height: heightEstimate });
+          placedRects.push({
+            left,
+            top,
+            width: widthEstimate,
+            height: heightEstimate,
+          });
           items.push({ word, left, top, rotate });
           placed = true;
           break;
@@ -105,25 +131,27 @@ export default function HomeScreen() {
   }, [bubbleWords]);
 
   const bubbleItemsKey = bubbleItems
-    .map((item) => `${item.word}-${Math.round(item.left)}-${Math.round(item.top)}`)
+    .map(
+      (item) => `${item.word}-${Math.round(item.left)}-${Math.round(item.top)}`,
+    )
     .join("|");
   const bubbleAnimations = useMemo(
     () => bubbleItems.map(() => new Animated.Value(0)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [bubbleItemsKey]
+    [bubbleItemsKey],
   );
 
   useEffect(() => {
     bubbleAnimations.forEach((value) => value.setValue(0));
     const sequence = bubbleAnimations.map((value) =>
-      Animated.spring(value, {
+      Animated.timing(value, {
         toValue: 1,
-        speed: 13,
-        bounciness: 8,
+        duration: 1500,
+        easing: Easing.out(Easing.cubic),
         useNativeDriver: true,
-      })
+      }),
     );
-    Animated.stagger(110, sequence).start();
+    Animated.stagger(180, sequence).start();
   }, [bubbleAnimations]);
 
   return (
@@ -141,15 +169,24 @@ export default function HomeScreen() {
             onPress={async () => {
               await signOutUser();
               router.replace("/auth");
-            }}>
+            }}
+          >
             <Text style={styles.iconText}>S</Text>
           </Pressable>
 
           <View style={styles.chatHintWrap}>
-            <Pressable style={styles.chatHint} onPress={() => router.push("/chat")}>
-              <Text style={styles.chatHintText}>If you need some advise...</Text>
+            <Pressable
+              style={styles.chatHint}
+              onPress={() => router.push("/chat")}
+            >
+              <Text style={styles.chatHintText}>
+                If you need some advise...
+              </Text>
             </Pressable>
-            <Pressable style={styles.chatCircle} onPress={() => router.push("/chat")}>
+            <Pressable
+              style={styles.chatCircle}
+              onPress={() => router.push("/chat")}
+            >
               <Text style={styles.chatCircleText}>:)</Text>
             </Pressable>
           </View>
@@ -183,13 +220,25 @@ export default function HomeScreen() {
                   left: item.left,
                   top: item.top,
                   transform: [
-                    { translateY: bubbleAnimations[index].interpolate({ inputRange: [0, 1], outputRange: [-340, 0] }) },
+                    {
+                      translateY: bubbleAnimations[index].interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [-SCREEN_HEIGHT, 0],
+                      }),
+                    },
                     { rotate: `${item.rotate}deg` },
                   ],
-                  opacity: bubbleAnimations[index].interpolate({ inputRange: [0, 1], outputRange: [0, 1] }),
+                  opacity: bubbleAnimations[index].interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [0, 1],
+                  }),
                 },
-              ]}>
-              <Pressable style={styles.wordChip} onPress={() => router.push("/chat")}>
+              ]}
+            >
+              <Pressable
+                style={styles.wordChip}
+                onPress={() => router.push("/chat")}
+              >
                 <Text style={styles.wordChipText}>{item.word}</Text>
               </Pressable>
             </Animated.View>
@@ -283,8 +332,9 @@ const styles = StyleSheet.create({
     marginTop: "auto",
     height: BUBBLE_ZONE_HEIGHT,
     paddingBottom: 8,
-    overflow: "hidden",
+    overflow: "visible",
     position: "relative",
+    zIndex: 5,
   },
   bubbleShell: {
     position: "absolute",
@@ -302,4 +352,3 @@ const styles = StyleSheet.create({
     letterSpacing: -0.7,
   },
 });
-
