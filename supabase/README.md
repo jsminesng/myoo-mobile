@@ -83,9 +83,10 @@ https://<your-project-ref>.supabase.co/functions/v1/diary-chat
 ## 6) Verify
 
 - `diary_entries` table exists
+- `chat_logs` table exists
 - `profiles` table exists
 - `diary-media` bucket exists
 - `diary-chat` function deployed
 - You can sign up/sign in and finish onboarding
-- Frontend can save only the signed-in user's entries and receive chat responses
+- Frontend can save only the signed-in user's entries and chat logs, and receive chat responses
 

@@ -20,6 +20,16 @@ create table if not exists public.diary_entries (
   created_at timestamptz not null default now()
 );
 
+create table if not exists public.chat_logs (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  entry_id uuid references public.diary_entries(id) on delete set null,
+  mode text not null default 'free_chat',
+  user_message text not null,
+  ai_message text not null,
+  created_at timestamptz not null default now()
+);
+
 -- Existing projects may already have diary_entries without user_id.
 -- Add missing columns safely for migration scenarios.
 alter table public.diary_entries
@@ -40,6 +50,7 @@ end $$;
 
 alter table public.profiles enable row level security;
 alter table public.diary_entries enable row level security;
+alter table public.chat_logs enable row level security;
 
 drop policy if exists "profiles_select_own" on public.profiles;
 create policy "profiles_select_own"
@@ -77,4 +88,14 @@ drop policy if exists "diary_delete_own" on public.diary_entries;
 create policy "diary_delete_own"
   on public.diary_entries for delete
   using (auth.uid() = user_id);
+
+drop policy if exists "chat_logs_select_own" on public.chat_logs;
+create policy "chat_logs_select_own"
+  on public.chat_logs for select
+  using (auth.uid() = user_id);
+
+drop policy if exists "chat_logs_insert_own" on public.chat_logs;
+create policy "chat_logs_insert_own"
+  on public.chat_logs for insert
+  with check (auth.uid() = user_id);
 

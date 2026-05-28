@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { getDiaryEntries } from "../utils/diaryStorage";
 import { invokeDiaryChat } from "../utils/chatApi";
+import { saveChatLog } from "../utils/chatStorage";
 
 function ChatPage({ setCurrentPage, selectedDiaryEntry, username = "there" }) {
   const [diaryEntries, setDiaryEntries] = useState([]);
@@ -144,6 +145,17 @@ function ChatPage({ setCurrentPage, selectedDiaryEntry, username = "there" }) {
         diaryEntry: selectedEntry,
       });
 
+      try {
+        await saveChatLog({
+          entryId: selectedEntry?.id || null,
+          mode: "free_chat",
+          userMessage: currentInput,
+          aiMessage: text,
+        });
+      } catch (logError) {
+        console.error("Chat log save failed:", logError);
+      }
+
       // 로딩 메시지 제거하고 응답 추가
       setMessages((prev) => {
         const filtered = prev.filter((msg) => !msg.isLoading);
@@ -224,6 +236,17 @@ function ChatPage({ setCurrentPage, selectedDiaryEntry, username = "there" }) {
         userMessage: suggestion,
         diaryEntry: selectedEntry,
       });
+
+      try {
+        await saveChatLog({
+          entryId: selectedEntry?.id || null,
+          mode: getModeFromSuggestion(suggestion),
+          userMessage: suggestion,
+          aiMessage: text,
+        });
+      } catch (logError) {
+        console.error("Chat log save failed:", logError);
+      }
 
       // Remove loading message and add response
       setMessages((prev) => {
