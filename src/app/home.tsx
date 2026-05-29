@@ -1,7 +1,7 @@
 import { getCurrentUser, getProfile, signOutUser } from "@/services/auth";
 import { DiaryEntry, getDiaryEntries } from "@/services/diaryStorage";
 import { LinearGradient } from "expo-linear-gradient";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import {
   Animated,
@@ -21,6 +21,7 @@ const BUBBLE_ZONE_HEIGHT = 260;
 const BUBBLE_GAP = 10;
 
 export default function HomeScreen() {
+  const { drop } = useLocalSearchParams<{ drop?: string }>();
   const [name, setName] = useState("there");
   const [entries, setEntries] = useState<DiaryEntry[]>([]);
   const [todayWord, setTodayWord] = useState("");
@@ -118,7 +119,7 @@ export default function HomeScreen() {
     });
 
     return items;
-  }, [bubbleWords.join("|")]);
+  }, [bubbleWords.join("|"), drop]);
 
   const bubbleItemsKey = bubbleItems
     .map(

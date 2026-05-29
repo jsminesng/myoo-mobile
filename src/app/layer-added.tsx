@@ -1,27 +1,99 @@
 import { getDiaryEntries } from "@/services/diaryStorage";
 import { LinearGradient } from "expo-linear-gradient";
 import { router, useLocalSearchParams } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Animated, Easing, Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import Svg, { Polyline } from "react-native-svg";
 
 type Bubble = { word: string };
+type SketchPoint = [number, number];
 
 const EMOJIS = [";-(", "ㅠㅠ", ":-)", ":-|", ">_<", "^_^"];
 
 function BubbleChip({
   word,
   emoji,
+  sketch,
   style,
 }: {
   word: string;
   emoji?: string;
+  sketch?: string;
   style?: object;
 }) {
+  const parsedSketchStrokes: SketchPoint[][] | null = useMemo(() => {
+    if (!sketch) return null;
+    try {
+      const raw = JSON.parse(sketch);
+      if (!Array.isArray(raw)) return null;
+
+      // Backward compatibility: old shape was SketchPoint[]
+      const isFlatPointArray =
+        raw.length > 0 &&
+        Array.isArray(raw[0]) &&
+        raw[0].length === 2 &&
+        Number.isFinite(raw[0][0]) &&
+        Number.isFinite(raw[0][1]);
+      if (isFlatPointArray) {
+        const points = raw
+          .filter(
+            (value) =>
+              Array.isArray(value) &&
+              value.length === 2 &&
+              Number.isFinite(value[0]) &&
+              Number.isFinite(value[1]),
+          )
+          .map((value) => [Number(value[0]), Number(value[1])] as SketchPoint);
+        return points.length > 1 ? [points] : null;
+      }
+
+      const strokes = raw
+        .filter((stroke) => Array.isArray(stroke))
+        .map((stroke) =>
+          stroke
+            .filter(
+              (value: any) =>
+                Array.isArray(value) &&
+                value.length === 2 &&
+                Number.isFinite(value[0]) &&
+                Number.isFinite(value[1]),
+            )
+            .map((value: any) => [Number(value[0]), Number(value[1])] as SketchPoint),
+        )
+        .filter((stroke) => stroke.length > 1);
+
+      return strokes.length > 0 ? strokes : null;
+    } catch {
+      return null;
+    }
+  }, [sketch]);
+
   return (
     <View style={[styles.wordChip, style]}>
       <Text style={styles.wordChipText}>{word}</Text>
-      {emoji ? (
+      {parsedSketchStrokes ? (
+        <View style={styles.emojiCircle}>
+          <Svg width={34} height={34} viewBox="0 0 34 34">
+            {parsedSketchStrokes.map((stroke, index) => {
+              const points = stroke
+                .map((point) => `${point[0] * 24 + 5},${point[1] * 24 + 5}`)
+                .join(" ");
+              return (
+                <Polyline
+                  key={`stroke-${index}`}
+                  points={points}
+                  fill="none"
+                  stroke="#334844"
+                  strokeWidth={2.6}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              );
+            })}
+          </Svg>
+        </View>
+      ) : emoji ? (
         <View style={styles.emojiCircle}>
           <Text style={styles.emojiText}>{emoji}</Text>
         </View>
@@ -31,15 +103,29 @@ function BubbleChip({
 }
 
 export default function LayerAddedScreen() {
-  const { word } = useLocalSearchParams<{ word?: string }>();
+  const { word, sketch } = useLocalSearchParams<{ word?: string; sketch?: string }>();
   const [entries, setEntries] = useState<Bubble[]>([]);
+  const focusDrop = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    const timeoutId = setTimeout(() => {
-      router.replace("/home");
-    }, 1500);
-    return () => clearTimeout(timeoutId);
-  }, []);
+    focusDrop.setValue(0);
+    Animated.sequence([
+      Animated.delay(900),
+      Animated.timing(focusDrop, {
+        toValue: 1,
+        duration: 520,
+        easing: Easing.in(Easing.cubic),
+        useNativeDriver: true,
+      }),
+    ]).start(({ finished }) => {
+      if (finished) {
+        router.replace({
+          pathname: "/home",
+          params: { drop: Date.now().toString() },
+        });
+      }
+    });
+  }, [focusDrop]);
 
   useEffect(() => {
     let mounted = true;
@@ -98,9 +184,23 @@ export default function LayerAddedScreen() {
 
         <Text style={styles.title}>One more{"\n"}layer added!</Text>
 
-        <View style={styles.focusBubbleWrap}>
-          <BubbleChip word={word?.trim() || "Today"} emoji=";-(" />
-        </View>
+        <Animated.View
+          style={[
+            styles.focusBubbleWrap,
+            {
+              transform: [
+                {
+                  translateY: focusDrop.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [-120, 0],
+                  }),
+                },
+              ],
+            },
+          ]}
+        >
+          <BubbleChip word={word?.trim() || "Today"} emoji=";-(" sketch={sketch} />
+        </Animated.View>
 
         <View style={styles.bottomBubbles}>
           {bubbleRows.map((row, rowIndex) => (

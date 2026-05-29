@@ -19,7 +19,11 @@ type PickedMedia = {
 };
 
 export default function MediaScreen() {
-  const { word, note } = useLocalSearchParams<{ word?: string; note?: string }>();
+  const { word, note, sketch } = useLocalSearchParams<{
+    word?: string;
+    note?: string;
+    sketch?: string;
+  }>();
   const [pickedMedia, setPickedMedia] = useState<PickedMedia | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -56,13 +60,17 @@ export default function MediaScreen() {
       await createDiaryEntry({
         word: word || "",
         note: note || "",
+        feeling: sketch || null,
         mediaUrl,
         mediaType,
       });
 
       router.replace({
         pathname: "/layer-added",
-        params: word ? { word } : {},
+        params: {
+          ...(word ? { word } : {}),
+          ...(sketch ? { sketch } : {}),
+        },
       });
     } catch (error: any) {
       Alert.alert("Save failed", error?.message || "Failed to save your diary entry.");

@@ -1,17 +1,11 @@
 import { LinearGradient } from "expo-linear-gradient";
 import { router, useLocalSearchParams } from "expo-router";
 import { useState } from "react";
-import {
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from "react-native";
+import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function NoteScreen() {
-  const { word } = useLocalSearchParams<{ word?: string }>();
+  const { word, sketch } = useLocalSearchParams<{ word?: string; sketch?: string }>();
   const [note, setNote] = useState("");
 
   return (
@@ -26,7 +20,10 @@ export default function NoteScreen() {
       <View style={styles.container}>
         <View style={styles.headerRow}>
           <View />
-          <Pressable style={styles.chatCircle} onPress={() => router.push("/chat")}>
+          <Pressable
+            style={styles.chatCircle}
+            onPress={() => router.push("/chat")}
+          >
             <Text style={styles.chatCircleText}>:)</Text>
           </Pressable>
         </View>
@@ -50,6 +47,7 @@ export default function NoteScreen() {
               pathname: "/media",
               params: {
                 ...(word ? { word } : {}),
+                ...(sketch ? { sketch } : {}),
                 ...(note.trim() ? { note: note.trim() } : {}),
               },
             })

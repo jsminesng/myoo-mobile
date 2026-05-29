@@ -9,6 +9,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import Svg, { Polyline } from "react-native-svg";
 
 type Point = { x: number; y: number };
 
@@ -16,6 +17,7 @@ export default function FeelingScreen() {
   const { word } = useLocalSearchParams<{ word?: string }>();
   const [strokes, setStrokes] = useState<Point[][]>([]);
   const [activeStroke, setActiveStroke] = useState<Point[]>([]);
+  const [drawAreaSize, setDrawAreaSize] = useState({ width: 1, height: 1 });
 
   const panResponder = useMemo(
     () =>
@@ -42,7 +44,28 @@ export default function FeelingScreen() {
     [activeStroke],
   );
 
-  const allPoints = [...strokes, activeStroke].flat();
+  const renderStrokes = useMemo(
+    () => [...strokes, activeStroke].filter((stroke) => stroke.length > 1),
+    [strokes, activeStroke],
+  );
+
+  const serializeSketch = () => {
+    const nonEmptyStrokes = strokes.filter((stroke) => stroke.length > 1);
+    if (nonEmptyStrokes.length === 0) return undefined;
+
+    const maxPointsPerStroke = 60;
+    const normalizedStrokes = nonEmptyStrokes.map((stroke) => {
+      const step = Math.max(1, Math.ceil(stroke.length / maxPointsPerStroke));
+      return stroke
+        .filter((_, index) => index % step === 0)
+        .map((point) => [
+          Number((point.x / drawAreaSize.width).toFixed(3)),
+          Number((point.y / drawAreaSize.height).toFixed(3)),
+        ]);
+    });
+
+    return JSON.stringify(normalizedStrokes);
+  };
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -63,33 +86,44 @@ export default function FeelingScreen() {
 
         <Text style={styles.title}>How are you{"\n"}feeling today?</Text>
 
-        <View style={styles.drawArea} {...panResponder.panHandlers}>
+        <View
+          style={styles.drawArea}
+          onLayout={(event) => {
+            const { width, height } = event.nativeEvent.layout;
+            setDrawAreaSize({ width: Math.max(1, width), height: Math.max(1, height) });
+          }}
+          {...panResponder.panHandlers}
+        >
           <View style={[styles.eyeGuide, styles.leftEyeGuide]} />
           <View style={[styles.eyeGuide, styles.rightEyeGuide]} />
           <View style={styles.mouthGuide} />
-
-          {allPoints.map((point, index) => (
-            <View
-              key={`${point.x}-${point.y}-${index}`}
-              style={[
-                styles.drawPoint,
-                {
-                  left: point.x - 3,
-                  top: point.y - 3,
-                },
-              ]}
-            />
-          ))}
+          <Svg style={StyleSheet.absoluteFill}>
+            {renderStrokes.map((stroke, index) => (
+              <Polyline
+                key={`stroke-${index}`}
+                points={stroke.map((point) => `${point.x},${point.y}`).join(" ")}
+                fill="none"
+                stroke="#334844"
+                strokeWidth={3.6}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            ))}
+          </Svg>
         </View>
 
         <Pressable
           style={styles.nextButton}
-          onPress={() =>
+          onPress={() => {
+            const sketch = serializeSketch();
             router.push({
               pathname: "/note",
-              params: word ? { word } : {},
-            })
-          }
+              params: {
+                ...(word ? { word } : {}),
+                ...(sketch ? { sketch } : {}),
+              },
+            });
+          }}
         >
           <Text style={styles.nextText}>Next</Text>
           <Text style={styles.nextArrow}>→</Text>
@@ -165,13 +199,6 @@ const styles = StyleSheet.create({
     left: "50%",
     marginLeft: -65,
     top: "52%",
-  },
-  drawPoint: {
-    position: "absolute",
-    width: 7,
-    height: 7,
-    borderRadius: 3.5,
-    backgroundColor: "#334844",
   },
   nextButton: {
     alignSelf: "center",
