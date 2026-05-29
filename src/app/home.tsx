@@ -8,12 +8,12 @@ import {
   Dimensions,
   Easing,
   Pressable,
-  SafeAreaView,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 const SCREEN_WIDTH = Dimensions.get("window").width;
 const SCREEN_HEIGHT = Dimensions.get("window").height;
@@ -52,7 +52,15 @@ export default function HomeScreen() {
       .slice(0, 10);
   }, [entries]);
 
-  const bubbleWords = suggestedWords.slice(0, 10);
+  const bubbleWords = useMemo(() => suggestedWords.slice(0, 10), [suggestedWords]);
+  const hasTypedWord = todayWord.trim().length > 0;
+  const moveToFeelingPage = () => {
+    const word = todayWord.trim();
+    router.push({
+      pathname: "/feeling",
+      params: word ? { word } : {},
+    });
+  };
 
   const bubbleItems = useMemo(() => {
     const placedRects: Array<{
@@ -110,7 +118,7 @@ export default function HomeScreen() {
     });
 
     return items;
-  }, [bubbleWords]);
+  }, [bubbleWords.join("|")]);
 
   const bubbleItemsKey = bubbleItems
     .map(
@@ -182,14 +190,24 @@ export default function HomeScreen() {
             day today?
           </Text>
 
-          <TextInput
-            value={todayWord}
-            onChangeText={setTodayWord}
-            style={styles.input}
-            placeholder=" "
-            placeholderTextColor="#9ea089"
-            onSubmitEditing={() => router.push("/chat")}
-          />
+          <View style={styles.inputRow}>
+            <TextInput
+              value={todayWord}
+              onChangeText={setTodayWord}
+              style={styles.input}
+              placeholder=" "
+              placeholderTextColor="#9ea089"
+              onSubmitEditing={moveToFeelingPage}
+            />
+            {hasTypedWord && (
+              <Pressable
+                style={styles.inlineArrowButton}
+                onPress={moveToFeelingPage}
+              >
+                <Text style={styles.inlineArrowText}>→</Text>
+              </Pressable>
+            )}
+          </View>
         </View>
 
         <View style={styles.bubblesLayer}>
@@ -302,13 +320,33 @@ const styles = StyleSheet.create({
     textDecorationLine: "underline",
     textDecorationColor: "#334844",
   },
+  inputRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
   input: {
+    flex: 1,
     height: 58,
     borderRadius: 18,
     backgroundColor: "#f3f2be",
     paddingHorizontal: 14,
     fontSize: 36,
     color: "#334844",
+  },
+  inlineArrowButton: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: "#f3f2be",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  inlineArrowText: {
+    color: "#334844",
+    fontSize: 24,
+    lineHeight: 26,
+    fontWeight: "600",
   },
   bubblesLayer: {
     marginTop: "auto",

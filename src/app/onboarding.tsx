@@ -2,12 +2,12 @@ import { useMemo, useState } from "react";
 import { router } from "expo-router";
 import {
   Pressable,
-  SafeAreaView,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { getCurrentUser, upsertProfile } from "@/services/auth";
 
