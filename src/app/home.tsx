@@ -1,4 +1,4 @@
-import { getCurrentUser, getProfile, signOutUser } from "@/services/auth";
+import { getCurrentUser, getProfile } from "@/services/auth";
 import { DiaryEntry, getDiaryEntries } from "@/services/diaryStorage";
 import { LinearGradient } from "expo-linear-gradient";
 import { router, useLocalSearchParams } from "expo-router";
@@ -46,14 +46,17 @@ export default function HomeScreen() {
     };
   }, []);
 
-  const suggestedWords = useMemo(() => {
+  const bubbleSourceEntries = useMemo(() => {
     return entries
-      .map((entry) => entry.word?.trim())
-      .filter((word): word is string => Boolean(word))
-      .slice(0, 10);
+      .filter((entry) => Boolean(entry.word?.trim()))
+      .slice(0, 10)
+      .map((entry) => ({
+        id: entry.id,
+        word: entry.word.trim(),
+      }));
   }, [entries]);
 
-  const bubbleWords = useMemo(() => suggestedWords.slice(0, 10), [suggestedWords]);
+  const bubbleWords = useMemo(() => bubbleSourceEntries.map((entry) => entry.word), [bubbleSourceEntries]);
   const hasTypedWord = todayWord.trim().length > 0;
   const moveToFeelingPage = () => {
     const word = todayWord.trim();
@@ -71,13 +74,14 @@ export default function HomeScreen() {
       height: number;
     }> = [];
     const items: Array<{
+      id: string;
       word: string;
       left: number;
       top: number;
       rotate: number;
     }> = [];
 
-    bubbleWords.forEach((word, index) => {
+    bubbleSourceEntries.forEach(({ id, word }, index) => {
       const widthEstimate = Math.max(108, Math.min(236, word.length * 24 + 64));
       const heightEstimate = 76;
       const minLeft = 8;
@@ -107,7 +111,7 @@ export default function HomeScreen() {
             width: widthEstimate,
             height: heightEstimate,
           });
-          items.push({ word, left, top, rotate });
+          items.push({ id, word, left, top, rotate });
           placed = true;
           break;
         }
@@ -119,7 +123,7 @@ export default function HomeScreen() {
     });
 
     return items;
-  }, [bubbleWords.join("|"), drop]);
+  }, [bubbleWords.join("|"), drop, bubbleSourceEntries]);
 
   const bubbleItemsKey = bubbleItems
     .map(
@@ -157,10 +161,7 @@ export default function HomeScreen() {
         <View style={styles.headerRow}>
           <Pressable
             style={styles.iconButton}
-            onPress={async () => {
-              await signOutUser();
-              router.replace("/auth");
-            }}
+            onPress={() => router.push("/profile")}
           >
             <Text style={styles.iconText}>S</Text>
           </Pressable>
@@ -238,7 +239,9 @@ export default function HomeScreen() {
             >
               <Pressable
                 style={styles.wordChip}
-                onPress={() => router.push("/chat")}
+                onPress={() => {
+                  router.push({ pathname: "/entry/[id]", params: { id: item.id } });
+                }}
               >
                 <Text style={styles.wordChipText}>{item.word}</Text>
               </Pressable>

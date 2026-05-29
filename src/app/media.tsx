@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { createDiaryEntry, uploadDiaryMedia } from "@/services/diaryStorage";
+import { clearSketchDraft, getSketchDraft } from "@/services/sketchDraft";
 
 type PickedMedia = {
   uri: string;
@@ -19,10 +20,9 @@ type PickedMedia = {
 };
 
 export default function MediaScreen() {
-  const { word, note, sketch } = useLocalSearchParams<{
+  const { word, note } = useLocalSearchParams<{
     word?: string;
     note?: string;
-    sketch?: string;
   }>();
   const [pickedMedia, setPickedMedia] = useState<PickedMedia | null>(null);
   const [saving, setSaving] = useState(false);
@@ -30,7 +30,7 @@ export default function MediaScreen() {
   const onPickMedia = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ["images", "videos"],
-      quality: 0.9,
+      quality: 0.55,
       allowsEditing: false,
       selectionLimit: 1,
     });
@@ -46,6 +46,7 @@ export default function MediaScreen() {
   const onNext = async () => {
     try {
       setSaving(true);
+      const sketch = getSketchDraft();
 
       let mediaUrl: string | null = null;
       let mediaType: "image" | "video" | null = null;
@@ -57,20 +58,17 @@ export default function MediaScreen() {
         mediaType = pickedMedia.type;
       }
 
-      await createDiaryEntry({
+      const createdEntry = await createDiaryEntry({
         word: word || "",
         note: note || "",
         feeling: sketch || null,
         mediaUrl,
         mediaType,
       });
-
+      clearSketchDraft();
       router.replace({
         pathname: "/layer-added",
-        params: {
-          ...(word ? { word } : {}),
-          ...(sketch ? { sketch } : {}),
-        },
+        params: { id: createdEntry.id },
       });
     } catch (error: any) {
       Alert.alert("Save failed", error?.message || "Failed to save your diary entry.");

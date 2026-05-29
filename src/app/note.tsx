@@ -5,7 +5,7 @@ import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function NoteScreen() {
-  const { word, sketch } = useLocalSearchParams<{ word?: string; sketch?: string }>();
+  const { word } = useLocalSearchParams<{ word?: string }>();
   const [note, setNote] = useState("");
 
   return (
@@ -47,7 +47,6 @@ export default function NoteScreen() {
               pathname: "/media",
               params: {
                 ...(word ? { word } : {}),
-                ...(sketch ? { sketch } : {}),
                 ...(note.trim() ? { note: note.trim() } : {}),
               },
             })

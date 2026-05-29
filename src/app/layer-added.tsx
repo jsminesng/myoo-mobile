@@ -1,4 +1,4 @@
-import { getDiaryEntries } from "@/services/diaryStorage";
+import { getDiaryEntries, getDiaryEntryById } from "@/services/diaryStorage";
 import { LinearGradient } from "expo-linear-gradient";
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -103,8 +103,10 @@ function BubbleChip({
 }
 
 export default function LayerAddedScreen() {
-  const { word, sketch } = useLocalSearchParams<{ word?: string; sketch?: string }>();
+  const { id, word } = useLocalSearchParams<{ id?: string; word?: string }>();
   const [entries, setEntries] = useState<Bubble[]>([]);
+  const [focusWord, setFocusWord] = useState((word || "").trim() || "Today");
+  const [focusSketch, setFocusSketch] = useState<string | null>(null);
   const focusDrop = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -129,6 +131,28 @@ export default function LayerAddedScreen() {
 
   useEffect(() => {
     let mounted = true;
+    const loadFocusEntry = async () => {
+      if (!id) return;
+      try {
+        const entry = await getDiaryEntryById(id);
+        if (!mounted || !entry) return;
+        setFocusWord(entry.word?.trim() || "Today");
+        setFocusSketch(entry.feeling || null);
+      } catch {
+        if (mounted) {
+          setFocusWord((word || "").trim() || "Today");
+          setFocusSketch(null);
+        }
+      }
+    };
+    loadFocusEntry();
+    return () => {
+      mounted = false;
+    };
+  }, [id, word]);
+
+  useEffect(() => {
+    let mounted = true;
     const load = async () => {
       try {
         const data = await getDiaryEntries();
@@ -138,7 +162,7 @@ export default function LayerAddedScreen() {
             data
               .map((entry) => entry.word?.trim())
               .filter((entryWord): entryWord is string => Boolean(entryWord))
-              .filter((entryWord) => entryWord !== (word || "").trim()),
+              .filter((entryWord) => entryWord !== focusWord),
           ),
         )
           .slice(0, 8)
@@ -152,7 +176,7 @@ export default function LayerAddedScreen() {
     return () => {
       mounted = false;
     };
-  }, [word]);
+  }, [focusWord]);
 
   const bubbleRows = useMemo(() => {
     return [entries.slice(0, 3), entries.slice(3, 6), entries.slice(6, 8)].filter(
@@ -199,7 +223,7 @@ export default function LayerAddedScreen() {
             },
           ]}
         >
-          <BubbleChip word={word?.trim() || "Today"} emoji=";-(" sketch={sketch} />
+          <BubbleChip word={focusWord} emoji=";-(" sketch={focusSketch || undefined} />
         </Animated.View>
 
         <View style={styles.bottomBubbles}>

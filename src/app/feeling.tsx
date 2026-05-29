@@ -10,6 +10,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Svg, { Polyline } from "react-native-svg";
+import { setSketchDraft } from "@/services/sketchDraft";
 
 type Point = { x: number; y: number };
 
@@ -116,12 +117,10 @@ export default function FeelingScreen() {
           style={styles.nextButton}
           onPress={() => {
             const sketch = serializeSketch();
+            setSketchDraft(sketch);
             router.push({
               pathname: "/note",
-              params: {
-                ...(word ? { word } : {}),
-                ...(sketch ? { sketch } : {}),
-              },
+              params: word ? { word } : {},
             });
           }}
         >

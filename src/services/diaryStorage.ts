@@ -15,6 +15,19 @@ export type DiaryEntry = {
   mediaType: string | null;
 };
 
+const inferMediaType = (mediaUrl?: string | null, mediaType?: string | null) => {
+  if (mediaType) return mediaType;
+  if (!mediaUrl) return null;
+  const lower = mediaUrl.toLowerCase();
+  if (lower.includes(".mp4") || lower.includes(".mov") || lower.includes(".webm")) {
+    return "video";
+  }
+  if (lower.includes(".jpg") || lower.includes(".jpeg") || lower.includes(".png") || lower.includes(".webp")) {
+    return "image";
+  }
+  return "image";
+};
+
 const mapRowToEntry = (row: any): DiaryEntry => ({
   id: row.id,
   date: row.date || "",
@@ -22,7 +35,7 @@ const mapRowToEntry = (row: any): DiaryEntry => ({
   feeling: row.feeling || null,
   note: row.note || "",
   media: row.media_url || null,
-  mediaType: row.media_type || null,
+  mediaType: inferMediaType(row.media_url || null, row.media_type || null),
 });
 
 const getCurrentUserId = async () => {
@@ -48,6 +61,23 @@ export const getDiaryEntries = async (): Promise<DiaryEntry[]> => {
 
   if (error) throw error;
   return (data || []).map(mapRowToEntry);
+};
+
+export const getDiaryEntryById = async (entryId: string): Promise<DiaryEntry | null> => {
+  if (!isSupabaseConfigured || !supabase) return null;
+  const userId = await getCurrentUserId();
+  if (!userId) return null;
+
+  const { data, error } = await supabase
+    .from(DIARY_TABLE)
+    .select("*")
+    .eq("id", entryId)
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (error) throw error;
+  if (!data) return null;
+  return mapRowToEntry(data);
 };
 
 export const uploadDiaryMedia = async (params: { uri: string; mediaType: "image" | "video" }) => {
@@ -83,8 +113,52 @@ export const uploadDiaryMedia = async (params: { uri: string; mediaType: "image"
     });
   if (uploadError) throw uploadError;
 
-  const { data } = supabase.storage.from(MEDIA_BUCKET).getPublicUrl(path);
-  return data.publicUrl;
+  // Store object path instead of public URL.
+  // This allows us to resolve either signed or public URL at read-time.
+  return path;
+};
+
+export const getSignedMediaUrlIfPossible = async (mediaUrl: string) => {
+  if (!isSupabaseConfigured || !supabase) return mediaUrl;
+
+  try {
+    const parsed = new URL(mediaUrl);
+    const marker = "/storage/v1/object/public/";
+    const markerIndex = parsed.pathname.indexOf(marker);
+    if (markerIndex === -1) return mediaUrl;
+
+    const storagePart = parsed.pathname.slice(markerIndex + marker.length);
+    const [bucket, ...rest] = storagePart.split("/");
+    if (!bucket || rest.length === 0) return mediaUrl;
+
+    const objectPath = decodeURIComponent(rest.join("/"));
+    const { data, error } = await supabase.storage.from(bucket).createSignedUrl(objectPath, 3600);
+    if (error || !data?.signedUrl) return mediaUrl;
+    return data.signedUrl;
+  } catch {
+    return mediaUrl;
+  }
+};
+
+export const resolveDiaryMediaUrl = async (mediaRef?: string | null) => {
+  if (!mediaRef) return null;
+  if (!isSupabaseConfigured || !supabase) return mediaRef;
+
+  // If this is already a URL, keep backward compatibility with existing rows.
+  if (mediaRef.startsWith("http://") || mediaRef.startsWith("https://")) {
+    return getSignedMediaUrlIfPossible(mediaRef);
+  }
+
+  // New rows store object path in diary-media bucket.
+  const { data: signedData, error: signedError } = await supabase.storage
+    .from(MEDIA_BUCKET)
+    .createSignedUrl(mediaRef, 3600);
+  if (!signedError && signedData?.signedUrl) {
+    return signedData.signedUrl;
+  }
+
+  const { data } = supabase.storage.from(MEDIA_BUCKET).getPublicUrl(mediaRef);
+  return data.publicUrl || null;
 };
 
 export const createDiaryEntry = async (params: {

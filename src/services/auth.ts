@@ -41,6 +41,15 @@ export const signOutUser = async () => {
   if (error) throw error;
 };
 
+export const updateUserPassword = async (newPassword: string) => {
+  if (!isSupabaseConfigured || !supabase) {
+    throw new Error("Supabase is not configured.");
+  }
+  const { data, error } = await supabase.auth.updateUser({ password: newPassword });
+  if (error) throw error;
+  return data;
+};
+
 export const getProfile = async (userId: string) => {
   if (!isSupabaseConfigured || !supabase) return null;
   const { data, error } = await supabase
