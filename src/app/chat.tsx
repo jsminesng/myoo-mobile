@@ -2,6 +2,7 @@ import { getCurrentUser, getProfile } from "@/services/auth";
 import { invokeDiaryChat } from "@/services/chatApi";
 import { saveChatLog } from "@/services/chatStorage";
 import { getDiaryEntries } from "@/services/diaryStorage";
+import { Image } from "expo-image";
 import { router } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -12,7 +13,6 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { Image } from "expo-image";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 type ChatMessage = { id: string; role: "user" | "ai" | "menu"; text: string };
@@ -119,7 +119,11 @@ export default function ChatScreen() {
   const appendQuickMenuMessage = () => {
     setMessages((prev) => [
       ...prev,
-      { id: `${Date.now()}-menu-${Math.random().toString(36).slice(2, 6)}`, role: "menu", text: "" },
+      {
+        id: `${Date.now()}-menu-${Math.random().toString(36).slice(2, 6)}`,
+        role: "menu",
+        text: "",
+      },
     ]);
     setTimeout(() => scrollToBottom(true), 40);
   };
@@ -159,25 +163,38 @@ export default function ChatScreen() {
                 <View style={styles.heroBubbleTail} />
                 <View style={styles.heroCard}>
                   <Text style={styles.heroTitle}>Hi {displayName}!</Text>
-                  <Text style={styles.heroSubtitle}>What do you need today?</Text>
+                  <Text style={styles.heroSubtitle}>
+                    What do you need today?
+                  </Text>
                   <View style={styles.actions}>
                     <Pressable
                       style={styles.actionButton}
-                      onPress={() => sendMessage("clear_advice", "Clear advice")}
+                      onPress={() =>
+                        sendMessage("clear_advice", "Clear advice")
+                      }
                     >
                       <Text style={styles.actionText}>Clear advice</Text>
                     </Pressable>
                     <Pressable
                       style={styles.actionButton}
-                      onPress={() => sendMessage("supportive_messages", "Supportive messages")}
+                      onPress={() =>
+                        sendMessage(
+                          "supportive_messages",
+                          "Supportive messages",
+                        )
+                      }
                     >
                       <Text style={styles.actionText}>Supportive messages</Text>
                     </Pressable>
                     <Pressable
                       style={styles.actionButton}
-                      onPress={() => sendMessage("write_apologies", "Write apologies for me")}
+                      onPress={() =>
+                        sendMessage("write_apologies", "Write apologies for me")
+                      }
                     >
-                      <Text style={styles.actionText}>Write apologies for me</Text>
+                      <Text style={styles.actionText}>
+                        Write apologies for me
+                      </Text>
                     </Pressable>
                   </View>
                 </View>

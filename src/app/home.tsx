@@ -1,13 +1,11 @@
 import { getCurrentUser, getProfile } from "@/services/auth";
+import { BubblePhysics } from "@/components/bubble-physics";
 import { DiaryEntry, getDiaryEntries } from "@/services/diaryStorage";
 import { LinearGradient } from "expo-linear-gradient";
 import { SymbolView } from "expo-symbols";
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import {
-  Animated,
-  Dimensions,
-  Easing,
   Pressable,
   StyleSheet,
   Text,
@@ -17,10 +15,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import Svg, { Polyline } from "react-native-svg";
 
-const SCREEN_WIDTH = Dimensions.get("window").width;
-const SCREEN_HEIGHT = Dimensions.get("window").height;
 const BUBBLE_ZONE_HEIGHT = 260;
-const BUBBLE_GAP = 10;
 type SketchPoint = [number, number];
 
 const parseSketchToStrokes = (sketch?: string | null): SketchPoint[][] | null => {
@@ -150,88 +145,10 @@ export default function HomeScreen() {
     });
   };
 
-  const bubbleItems = useMemo(() => {
-    const placedRects: Array<{
-      left: number;
-      top: number;
-      width: number;
-      height: number;
-    }> = [];
-    const items: Array<{
-      id: string;
-      word: string;
-      left: number;
-      top: number;
-      rotate: number;
-    }> = [];
-
-    bubbleSourceEntries.forEach(({ id, word }, index) => {
-      const widthEstimate = Math.max(160, Math.min(300, word.length * 24 + 112));
-      const heightEstimate = 76;
-      const minLeft = 8;
-      const minTop = 10;
-      const maxLeft = Math.max(minLeft, SCREEN_WIDTH - widthEstimate - 10);
-      const maxTop = Math.max(minTop, BUBBLE_ZONE_HEIGHT - heightEstimate - 8);
-      const rotate = -29 + Math.random() * 22;
-      let placed = false;
-
-      for (let attempt = 0; attempt < 48; attempt += 1) {
-        const left = minLeft + Math.random() * (maxLeft - minLeft);
-        const top = minTop + Math.random() * (maxTop - minTop);
-
-        const overlaps = placedRects.some((rect) => {
-          const separated =
-            left + widthEstimate + BUBBLE_GAP < rect.left ||
-            left > rect.left + rect.width + BUBBLE_GAP ||
-            top + heightEstimate + BUBBLE_GAP < rect.top ||
-            top > rect.top + rect.height + BUBBLE_GAP;
-          return !separated;
-        });
-
-        if (!overlaps) {
-          placedRects.push({
-            left,
-            top,
-            width: widthEstimate,
-            height: heightEstimate,
-          });
-          items.push({ id, word, left, top, rotate });
-          placed = true;
-          break;
-        }
-      }
-
-      if (!placed) {
-        // If there is no free space, skip extra bubbles to avoid overlap.
-      }
-    });
-
-    return items;
-  }, [bubbleWords.join("|"), drop, bubbleSourceEntries]);
-
-  const bubbleItemsKey = bubbleItems
-    .map(
-      (item) => `${item.word}-${Math.round(item.left)}-${Math.round(item.top)}`,
-    )
-    .join("|");
-  const bubbleAnimations = useMemo(
-    () => bubbleItems.map(() => new Animated.Value(0)),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [bubbleItemsKey],
+  const bubblePhysicsItems = useMemo(
+    () => bubbleSourceEntries.map((entry) => ({ text: entry.word })),
+    [bubbleSourceEntries],
   );
-
-  useEffect(() => {
-    bubbleAnimations.forEach((value) => value.setValue(0));
-    const sequence = bubbleAnimations.map((value) =>
-      Animated.timing(value, {
-        toValue: 1,
-        duration: 1500,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: true,
-      }),
-    );
-    Animated.stagger(180, sequence).start();
-  }, [bubbleAnimations]);
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -321,116 +238,22 @@ export default function HomeScreen() {
         </View>
 
         <View style={styles.bubblesLayer}>
-          {bubbleItems.map((item, index) => (
-            <Animated.View
-              key={`${item.word}-${index}`}
-              style={[
-                styles.bubbleShell,
-                {
-                  left: item.left,
-                  top: item.top,
-                  transform: [
-                    {
-                      translateY: bubbleAnimations[index].interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [-SCREEN_HEIGHT, 0],
-                      }),
-                    },
-                    { rotate: `${item.rotate}deg` },
-                  ],
-                  opacity: bubbleAnimations[index].interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [0, 1],
-                  }),
-                },
-              ]}
-            >
-              <Pressable
-                style={styles.wordChip}
-                onPress={() => {
-                  router.push({ pathname: "/entry/[id]", params: { id: item.id } });
-                }}
-              >
-                <Text style={styles.wordChipText}>{item.word}</Text>
-                <View style={styles.bubbleFaceCircle}>
-                  {(() => {
-                    const sketch = bubbleSourceEntries.find((entry) => entry.id === item.id)?.feeling;
-                    if (!sketch) {
-                      return <Text style={styles.bubbleFaceIcon}>:)</Text>;
-                    }
-                    let parsedSketchStrokes: SketchPoint[][] | null = null;
-                    try {
-                      const raw = JSON.parse(sketch);
-                      if (Array.isArray(raw)) {
-                        const isFlatPointArray =
-                          raw.length > 0 &&
-                          Array.isArray(raw[0]) &&
-                          raw[0].length === 2 &&
-                          Number.isFinite(raw[0][0]) &&
-                          Number.isFinite(raw[0][1]);
-
-                        if (isFlatPointArray) {
-                          const points = raw
-                            .filter(
-                              (value) =>
-                                Array.isArray(value) &&
-                                value.length === 2 &&
-                                Number.isFinite(value[0]) &&
-                                Number.isFinite(value[1]),
-                            )
-                            .map((value) => [Number(value[0]), Number(value[1])] as SketchPoint);
-                          parsedSketchStrokes = points.length > 1 ? [points] : null;
-                        } else {
-                          const strokes = raw
-                            .filter((stroke) => Array.isArray(stroke))
-                            .map((stroke) =>
-                              stroke
-                                .filter(
-                                  (value: any) =>
-                                    Array.isArray(value) &&
-                                    value.length === 2 &&
-                                    Number.isFinite(value[0]) &&
-                                    Number.isFinite(value[1]),
-                                )
-                                .map((value: any) => [Number(value[0]), Number(value[1])] as SketchPoint),
-                            )
-                            .filter((stroke) => stroke.length > 1);
-                          parsedSketchStrokes = strokes.length > 0 ? strokes : null;
-                        }
-                      }
-                    } catch {
-                      parsedSketchStrokes = null;
-                    }
-
-                    if (!parsedSketchStrokes) {
-                      return <Text style={styles.bubbleFaceIcon}>:)</Text>;
-                    }
-
-                    return (
-                      <Svg width={56} height={56} viewBox="0 0 56 56">
-                        {parsedSketchStrokes.map((stroke, strokeIndex) => {
-                          const points = stroke
-                            .map((point) => `${point[0] * 40 + 8},${point[1] * 40 + 8}`)
-                            .join(" ");
-                          return (
-                            <Polyline
-                              key={`stroke-${strokeIndex}`}
-                              points={points}
-                              fill="none"
-                              stroke="#35554b"
-                              strokeWidth={3.2}
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            />
-                          );
-                        })}
-                      </Svg>
-                    );
-                  })()}
-                </View>
-              </Pressable>
-            </Animated.View>
-          ))}
+          <BubblePhysics
+            items={bubblePhysicsItems}
+            enabled
+            onBubbleClick={(_, index) => {
+              const target = bubbleSourceEntries[index];
+              if (!target) return;
+              if (target.id.startsWith("incoming-")) {
+                router.push({
+                  pathname: "/feeling",
+                  params: target.word ? { word: target.word } : {},
+                });
+                return;
+              }
+              router.push({ pathname: "/entry/[id]", params: { id: target.id } });
+            }}
+          />
         </View>
       </View>
     </SafeAreaView>
@@ -539,37 +362,5 @@ const styles = StyleSheet.create({
     overflow: "visible",
     position: "relative",
     zIndex: 5,
-  },
-  bubbleShell: {
-    position: "absolute",
-  },
-  wordChip: {
-    backgroundColor: "#35554b",
-    borderRadius: 999,
-    paddingVertical: 10,
-    paddingHorizontal: 18,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-  },
-  wordChipText: {
-    color: "#eef0be",
-    fontSize: 43,
-    fontWeight: "600",
-    letterSpacing: -0.7,
-  },
-  bubbleFaceCircle: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: "#e6e7b8",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  bubbleFaceIcon: {
-    color: "#35554b",
-    fontSize: 28,
-    fontWeight: "700",
-    marginTop: -2,
   },
 });
