@@ -15,7 +15,6 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import Svg, { Polyline } from "react-native-svg";
 
-const BUBBLE_ZONE_HEIGHT = 260;
 type SketchPoint = [number, number];
 
 const parseSketchToStrokes = (sketch?: string | null): SketchPoint[][] | null => {
@@ -245,6 +244,7 @@ export default function HomeScreen() {
           <BubblePhysics
             items={bubblePhysicsItems}
             enabled
+            gravityY={1.15}
             onBubbleClick={(_, index) => {
               const target = bubbleSourceEntries[index];
               if (!target) return;
@@ -279,6 +279,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+    zIndex: 10,
   },
   iconButton: {
     width: 36,
@@ -319,6 +320,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingTop: 22,
     gap: 18,
+    zIndex: 10,
   },
   title: {
     color: "#334844",
@@ -329,7 +331,8 @@ const styles = StyleSheet.create({
   },
   underlinedName: {
     textDecorationLine: "underline",
-    textDecorationColor: "#334844",
+    textDecorationColor: "#f3f2be",
+    textDecorationStyle: "solid",
   },
   inputRow: {
     flexDirection: "row",
@@ -360,11 +363,11 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   bubblesLayer: {
-    marginTop: "auto",
-    height: BUBBLE_ZONE_HEIGHT,
-    paddingBottom: 8,
-    overflow: "visible",
-    position: "relative",
-    zIndex: 5,
+    position: "absolute",
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    zIndex: 1,
   },
 });

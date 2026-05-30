@@ -1,133 +1,23 @@
+import { BubblePhysics } from "@/components/bubble-physics";
 import { getDiaryEntries, getDiaryEntryById } from "@/services/diaryStorage";
 import { LinearGradient } from "expo-linear-gradient";
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Animated, Easing, Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import Svg, { Polyline } from "react-native-svg";
+type ExistingBubble = { word: string; sketch: string | null };
 
-type Bubble = { word: string };
-type SketchPoint = [number, number];
-
-const EMOJIS = [";-(", "ㅠㅠ", ":-)", ":-|", ">_<", "^_^"];
-
-function BubbleChip({
-  word,
-  emoji,
-  sketch,
-  style,
-}: {
-  word: string;
-  emoji?: string;
-  sketch?: string;
-  style?: object;
-}) {
-  const parsedSketchStrokes: SketchPoint[][] | null = useMemo(() => {
-    if (!sketch) return null;
-    try {
-      const raw = JSON.parse(sketch);
-      if (!Array.isArray(raw)) return null;
-
-      // Backward compatibility: old shape was SketchPoint[]
-      const isFlatPointArray =
-        raw.length > 0 &&
-        Array.isArray(raw[0]) &&
-        raw[0].length === 2 &&
-        Number.isFinite(raw[0][0]) &&
-        Number.isFinite(raw[0][1]);
-      if (isFlatPointArray) {
-        const points = raw
-          .filter(
-            (value) =>
-              Array.isArray(value) &&
-              value.length === 2 &&
-              Number.isFinite(value[0]) &&
-              Number.isFinite(value[1]),
-          )
-          .map((value) => [Number(value[0]), Number(value[1])] as SketchPoint);
-        return points.length > 1 ? [points] : null;
-      }
-
-      const strokes = raw
-        .filter((stroke) => Array.isArray(stroke))
-        .map((stroke) =>
-          stroke
-            .filter(
-              (value: any) =>
-                Array.isArray(value) &&
-                value.length === 2 &&
-                Number.isFinite(value[0]) &&
-                Number.isFinite(value[1]),
-            )
-            .map((value: any) => [Number(value[0]), Number(value[1])] as SketchPoint),
-        )
-        .filter((stroke) => stroke.length > 1);
-
-      return strokes.length > 0 ? strokes : null;
-    } catch {
-      return null;
-    }
-  }, [sketch]);
-
-  return (
-    <View style={[styles.wordChip, style]}>
-      <Text style={styles.wordChipText}>{word}</Text>
-      {parsedSketchStrokes ? (
-        <View style={styles.emojiCircle}>
-          <Svg width={34} height={34} viewBox="0 0 34 34">
-            {parsedSketchStrokes.map((stroke, index) => {
-              const points = stroke
-                .map((point) => `${point[0] * 24 + 5},${point[1] * 24 + 5}`)
-                .join(" ");
-              return (
-                <Polyline
-                  key={`stroke-${index}`}
-                  points={points}
-                  fill="none"
-                  stroke="#334844"
-                  strokeWidth={2.6}
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              );
-            })}
-          </Svg>
-        </View>
-      ) : emoji ? (
-        <View style={styles.emojiCircle}>
-          <Text style={styles.emojiText}>{emoji}</Text>
-        </View>
-      ) : null}
-    </View>
-  );
-}
+const NEW_BUBBLE_RELEASE_DELAY_MS = 2100;
+const NEW_BUBBLE_FALL_MS = 900;
+const HOLD_BEFORE_REDIRECT_MS = 650;
 
 export default function LayerAddedScreen() {
   const { id, word } = useLocalSearchParams<{ id?: string; word?: string }>();
-  const [entries, setEntries] = useState<Bubble[]>([]);
+  const [entries, setEntries] = useState<ExistingBubble[]>([]);
+  const [areEntriesReady, setAreEntriesReady] = useState(false);
   const [focusWord, setFocusWord] = useState((word || "").trim() || "Today");
   const [focusSketch, setFocusSketch] = useState<string | null>(null);
-  const focusDrop = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    focusDrop.setValue(0);
-    Animated.sequence([
-      Animated.delay(900),
-      Animated.timing(focusDrop, {
-        toValue: 1,
-        duration: 520,
-        easing: Easing.in(Easing.cubic),
-        useNativeDriver: true,
-      }),
-    ]).start(({ finished }) => {
-      if (finished) {
-        router.replace({
-          pathname: "/home",
-          params: { drop: Date.now().toString() },
-        });
-      }
-    });
-  }, [focusDrop]);
+  const hasRedirectedRef = useRef(false);
 
   useEffect(() => {
     let mounted = true;
@@ -154,22 +44,28 @@ export default function LayerAddedScreen() {
   useEffect(() => {
     let mounted = true;
     const load = async () => {
+      if (mounted) setAreEntriesReady(false);
       try {
         const data = await getDiaryEntries();
         if (!mounted) return;
         const uniqueWords = Array.from(
           new Set(
             data
-              .map((entry) => entry.word?.trim())
+              .map((entry) => `${entry.word?.trim() || ""}:::${entry.feeling || ""}`)
               .filter((entryWord): entryWord is string => Boolean(entryWord))
-              .filter((entryWord) => entryWord !== focusWord),
+              .filter((entryWord) => !entryWord.startsWith(`${focusWord}:::`)),
           ),
         )
           .slice(0, 8)
-          .map((entryWord) => ({ word: entryWord }));
+          .map((entryWord) => {
+            const [entryOnlyWord, entryOnlyFeeling = ""] = entryWord.split(":::");
+            return { word: entryOnlyWord, sketch: entryOnlyFeeling || null };
+          });
         setEntries(uniqueWords);
       } catch {
         if (mounted) setEntries([]);
+      } finally {
+        if (mounted) setAreEntriesReady(true);
       }
     };
     load();
@@ -178,11 +74,39 @@ export default function LayerAddedScreen() {
     };
   }, [focusWord]);
 
-  const bubbleRows = useMemo(() => {
-    return [entries.slice(0, 3), entries.slice(3, 6), entries.slice(6, 8)].filter(
-      (row) => row.length > 0,
-    );
+  const existingBubbleItems = useMemo(() => {
+    return entries.map((entry) => ({
+      text: entry.word,
+      sketch: entry.sketch,
+    }));
   }, [entries]);
+  const allBubbleItems = useMemo(
+    () => [
+      ...existingBubbleItems,
+      {
+        text: focusWord,
+        sketch: focusSketch,
+      },
+    ],
+    [existingBubbleItems, focusSketch, focusWord],
+  );
+
+  useEffect(() => {
+    if (!areEntriesReady) return;
+    hasRedirectedRef.current = false;
+    const redirectTimer = setTimeout(() => {
+      if (hasRedirectedRef.current) return;
+      hasRedirectedRef.current = true;
+      router.replace({
+        pathname: "/home",
+        params: { drop: Date.now().toString() },
+      });
+    }, NEW_BUBBLE_RELEASE_DELAY_MS + NEW_BUBBLE_FALL_MS + HOLD_BEFORE_REDIRECT_MS);
+
+    return () => {
+      clearTimeout(redirectTimer);
+    };
+  }, [areEntriesReady]);
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -208,46 +132,18 @@ export default function LayerAddedScreen() {
 
         <Text style={styles.title}>One more{"\n"}layer added!</Text>
 
-        <Animated.View
-          style={[
-            styles.focusBubbleWrap,
-            {
-              transform: [
-                {
-                  translateY: focusDrop.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [-120, 0],
-                  }),
-                },
-              ],
-            },
-          ]}
-        >
-          <BubbleChip word={focusWord} emoji=";-(" sketch={focusSketch || undefined} />
-        </Animated.View>
-
-        <View style={styles.bottomBubbles}>
-          {bubbleRows.map((row, rowIndex) => (
-            <View
-              key={`row-${rowIndex}`}
-              style={[
-                styles.bubblesRow,
-                rowIndex === 0 && styles.rowOne,
-                rowIndex === 1 && styles.rowTwo,
-                rowIndex === 2 && styles.rowThree,
-              ]}
-            >
-              {row.map((bubble, index) => (
-                <BubbleChip
-                  key={`${bubble.word}-${index}`}
-                  word={bubble.word}
-                  emoji={EMOJIS[(rowIndex + index) % EMOJIS.length]}
-                />
-              ))}
-            </View>
-          ))}
+        <View style={styles.bubblesLayer}>
+          <BubblePhysics
+            items={allBubbleItems}
+            enabled
+            gravityY={1.38}
+            spawnYOffsetRange={[220, 520]}
+            centerStartAt="middle"
+            centerYRatio={0.42}
+            holdLastBubbleMs={NEW_BUBBLE_RELEASE_DELAY_MS}
+            releaseLastOnSettle
+          />
         </View>
-
       </View>
     </SafeAreaView>
   );
@@ -268,6 +164,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+    zIndex: 10,
   },
   spacer: {
     width: 28,
@@ -308,60 +205,20 @@ const styles = StyleSheet.create({
     lineHeight: 64,
     fontWeight: "600",
     letterSpacing: -1,
+    zIndex: 10,
   },
-  focusBubbleWrap: {
-    marginTop: 46,
-    alignItems: "center",
+  bubblesLayer: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    zIndex: 1,
   },
+  /* legacy style name preserved to avoid broad structural churn */
   bottomBubbles: {
-    marginTop: "auto",
-    minHeight: 190,
-    paddingBottom: 10,
-    overflow: "hidden",
-    gap: 14,
-  },
-  bubblesRow: {
-    flexDirection: "row",
-    gap: 12,
-    paddingHorizontal: 12,
-  },
-  rowOne: {
-    transform: [{ rotate: "-17deg" }],
-    marginLeft: -14,
-  },
-  rowTwo: {
-    transform: [{ rotate: "-28deg" }],
-    marginLeft: -22,
-  },
-  rowThree: {
-    transform: [{ rotate: "-20deg" }],
-    marginLeft: -10,
-  },
-  wordChip: {
-    backgroundColor: "#35554b",
-    borderRadius: 999,
-    paddingVertical: 9,
-    paddingHorizontal: 16,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-  },
-  wordChipText: {
-    color: "#eef0be",
-    fontSize: 26,
-    fontWeight: "600",
-  },
-  emojiCircle: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: "#e6e7b8",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  emojiText: {
-    color: "#35554b",
-    fontSize: 16,
-    fontWeight: "600",
+    position: "absolute",
+    width: 0,
+    height: 0,
   },
 });

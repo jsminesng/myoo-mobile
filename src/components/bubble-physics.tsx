@@ -30,6 +30,14 @@ type BubblePhysicsProps = {
   items: BubbleItem[];
   onBubbleClick?: (item: BubbleItem, index: number) => void;
   enabled?: boolean;
+  initialPlacement?: "random" | "center";
+  centerStartAt?: "top" | "middle";
+  centerYRatio?: number;
+  releaseAfterMs?: number;
+  holdLastBubbleMs?: number;
+  releaseLastOnSettle?: boolean;
+  gravityY?: number;
+  spawnYOffsetRange?: [number, number];
 };
 
 type BubbleBody = ReturnType<typeof Bodies.rectangle> & {
@@ -39,6 +47,7 @@ type BubbleBody = ReturnType<typeof Bodies.rectangle> & {
   bubbleSketch?: string | null;
   bubbleWidth: number;
   bubbleHeight: number;
+  bubbleIsHeldLast?: boolean;
 };
 
 type DragState = {
@@ -56,6 +65,7 @@ const GRAVITY_Y = 0.6;
 const CLICK_MAX_DURATION_MS = 650;
 const CLICK_MAX_MOVE_PX = 18;
 const BUBBLE_HEIGHT = 62;
+const DEFAULT_SPAWN_Y_OFFSET_RANGE: [number, number] = [80, 220];
 
 const estimateBubbleWidth = (item: BubbleItem) => {
   const textWidthApprox = Math.max(78, item.text.length * 16);
@@ -118,9 +128,20 @@ export function BubblePhysics({
   items,
   onBubbleClick,
   enabled = true,
+  initialPlacement = "random",
+  centerStartAt = "top",
+  centerYRatio = 0.56,
+  releaseAfterMs,
+  holdLastBubbleMs,
+  releaseLastOnSettle = false,
+  gravityY = GRAVITY_Y,
+  spawnYOffsetRange = DEFAULT_SPAWN_Y_OFFSET_RANGE,
 }: BubblePhysicsProps) {
   const [size, setSize] = useState({ width: 0, height: 0 });
   const [renderBodies, setRenderBodies] = useState<BubbleBody[]>([]);
+  const [heldLastReleased, setHeldLastReleased] = useState(true);
+  const spawnMin = Math.max(0, Math.min(spawnYOffsetRange[0], spawnYOffsetRange[1]));
+  const spawnMax = Math.max(spawnMin, Math.max(spawnYOffsetRange[0], spawnYOffsetRange[1]));
 
   const engineRef = useRef<Engine | null>(null);
   const runnerRef = useRef<Runner | null>(null);
@@ -153,7 +174,7 @@ export function BubblePhysics({
     }
 
     const engine = Engine.create();
-    engine.world.gravity.y = GRAVITY_Y;
+    engine.world.gravity.y = gravityY;
     engineRef.current = engine;
 
     const runner = Runner.create();
@@ -172,10 +193,25 @@ export function BubblePhysics({
     World.add(engine.world, [floor, leftWall, rightWall]);
 
     const bodies: BubbleBody[] = items.map((item, index) => {
+      const isHeldLastBubble =
+        Boolean(holdLastBubbleMs && holdLastBubbleMs > 0) &&
+        items.length > 1 &&
+        index === items.length - 1;
       const width = estimateBubbleWidth(item);
-      const x = width / 2 + Math.random() * Math.max(1, size.width - width);
-      const y = -80 - Math.random() * 220;
-      const initialAngle = (Math.random() - 0.5) * 0.28;
+      const x =
+        isHeldLastBubble || (initialPlacement === "center" && items.length === 1)
+          ? size.width / 2
+          : width / 2 + Math.random() * Math.max(1, size.width - width);
+      const y =
+        isHeldLastBubble || (initialPlacement === "center" && items.length === 1)
+          ? centerStartAt === "middle"
+            ? size.height * centerYRatio
+            : -BUBBLE_HEIGHT
+          : -spawnMin - Math.random() * Math.max(1, spawnMax - spawnMin);
+      const initialAngle =
+        isHeldLastBubble || (initialPlacement === "center" && items.length === 1)
+          ? 0
+          : (Math.random() - 0.5) * 0.28;
       const body = Bodies.rectangle(x, y, width, BUBBLE_HEIGHT, {
         chamfer: { radius: BUBBLE_HEIGHT / 2 },
         restitution: 0.55,
@@ -188,6 +224,10 @@ export function BubblePhysics({
       body.bubbleSketch = item.sketch || null;
       body.bubbleWidth = width;
       body.bubbleHeight = BUBBLE_HEIGHT;
+      body.bubbleIsHeldLast =
+        Boolean(holdLastBubbleMs && holdLastBubbleMs > 0) &&
+        items.length > 1 &&
+        index === items.length - 1;
       Body.setAngle(body, initialAngle);
       return body;
     });
@@ -195,9 +235,59 @@ export function BubblePhysics({
     worldBodiesRef.current = bodies;
     World.add(engine.world, bodies);
 
+    let releaseTimer: ReturnType<typeof setTimeout> | null = null;
+    let heldBubbleRef: BubbleBody | null = null;
+    let settledFrames = 0;
+    const releaseHeldBubble = () => {
+      if (!heldBubbleRef) return;
+      setHeldLastReleased(true);
+      Body.set(heldBubbleRef, "isSensor", false);
+      Body.setVelocity(heldBubbleRef, { x: 0, y: 0 });
+      Body.setStatic(heldBubbleRef, false);
+      heldBubbleRef = null;
+      settledFrames = 0;
+    };
+    if ((releaseAfterMs ?? 0) > 0) {
+      bodies.forEach((body) => Body.setStatic(body, true));
+      releaseTimer = setTimeout(() => {
+        bodies.forEach((body) => {
+          Body.setVelocity(body, { x: 0, y: 0 });
+          Body.setStatic(body, false);
+        });
+      }, releaseAfterMs);
+    } else if ((holdLastBubbleMs ?? 0) > 0 && items.length > 1) {
+      const heldBubble = bodies[bodies.length - 1];
+      if (heldBubble) {
+        heldBubbleRef = heldBubble;
+        setHeldLastReleased(false);
+        Body.set(heldBubble, "isSensor", true);
+        Body.setStatic(heldBubble, true);
+        releaseTimer = setTimeout(() => {
+          releaseHeldBubble();
+        }, holdLastBubbleMs);
+      }
+    }
+
     const tick = () => {
       if (!engineRef.current || !runnerRef.current) return;
       Runner.tick(runnerRef.current, engineRef.current, 1000 / 60);
+      if (releaseLastOnSettle && heldBubbleRef && bodies.length > 1) {
+        const others = bodies.slice(0, -1);
+        const allSettled = others.every((body) => {
+          const lowVelocity = Math.abs(body.velocity.x) < 0.08 && Math.abs(body.velocity.y) < 0.08;
+          const lowAngularVelocity = Math.abs(body.angularVelocity) < 0.02;
+          const nearFloor = body.position.y > size.height * 0.5;
+          return lowVelocity && lowAngularVelocity && nearFloor;
+        });
+        if (allSettled) {
+          settledFrames += 1;
+          if (settledFrames >= 18) {
+            releaseHeldBubble();
+          }
+        } else {
+          settledFrames = 0;
+        }
+      }
       setRenderBodies([...worldBodiesRef.current]);
       rafRef.current = requestAnimationFrame(tick);
     };
@@ -210,6 +300,9 @@ export function BubblePhysics({
       if (runnerRef.current) {
         Runner.stop(runnerRef.current);
       }
+      if (releaseTimer) {
+        clearTimeout(releaseTimer);
+      }
       if (engineRef.current) {
         Composite.clear(engineRef.current.world, false);
         Engine.clear(engineRef.current);
@@ -220,7 +313,7 @@ export function BubblePhysics({
       runnerRef.current = null;
       engineRef.current = null;
     };
-  }, [enabled, items, size.width, size.height]);
+  }, [centerStartAt, centerYRatio, enabled, gravityY, holdLastBubbleMs, initialPlacement, items, releaseAfterMs, releaseLastOnSettle, size.height, size.width, spawnMax, spawnMin]);
 
   const onLayout = (event: LayoutChangeEvent) => {
     const { width, height } = event.nativeEvent.layout;
@@ -368,6 +461,7 @@ export function BubblePhysics({
                   height: body.bubbleHeight,
                   left: body.position.x - body.bubbleWidth / 2,
                   top: body.position.y - body.bubbleHeight / 2,
+                  zIndex: body.bubbleIsHeldLast && !heldLastReleased ? 0 : 2,
                   transform: [{ rotate: toDegrees(body.angle) }],
                 },
               ]}
