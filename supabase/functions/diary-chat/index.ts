@@ -38,13 +38,15 @@ Keep your response concise but complete.
 Usually respond in 2-3 short sentences.
 Do not use markdown formatting, bullets, or headings.
 Use plain conversational tone.
-Always end with a complete sentence. Never end mid-sentence.`;
+Always end with a complete sentence. Never end mid-sentence.
+If diary context is provided, base the response on that context and reference at least one concrete diary detail (date, word, or note) naturally.
+Do not invent diary facts that are not present in the context.`;
 
   if (mode === "clear_advice") {
     return `${base}
 ${context ? `${context}\n` : ""}
 Give clear and practical advice based on the diary context.
-If diary context is missing, give general practical advice.
+If diary context is missing, give general practical advice and invite the user to share today's diary.
 User request: ${userMessage}`;
   }
 
@@ -52,6 +54,7 @@ User request: ${userMessage}`;
     return `${base}
 ${context ? `${context}\n` : ""}
 Respond with warm, empathetic, supportive messages.
+If diary context exists, validate the emotion implied by the diary note before giving encouragement.
 User request: ${userMessage}`;
   }
 
@@ -65,7 +68,8 @@ User request: ${userMessage}`;
 
   return `${base}
 ${context ? `${context}\n` : ""}
-Answer the user's question using the diary context when relevant.
+Answer the user's question using the diary context as the primary source when available.
+If diary context is missing, ask one short clarifying question first, then give a brief helpful suggestion.
 User question: ${userMessage}`;
 };
 

@@ -7,6 +7,8 @@ import Svg, { Polyline } from "react-native-svg";
 import { Image } from "expo-image";
 
 type SketchPoint = [number, number];
+const MYOO_FACE_URI =
+  "file:///Users/seungeunsong/.cursor/projects/Users-seungeunsong-myoo/assets/___________2026-05-30_23.02.47-781b8380-44e6-4647-ad83-6fc8d1138c9b.png";
 
 function SketchCircle({ sketch }: { sketch?: string | null }) {
   const parsedSketchStrokes: SketchPoint[][] | null = useMemo(() => {
@@ -142,14 +144,21 @@ export default function EntryDetailScreen() {
           />
         ) : null}
 
-        <View style={styles.helpRow}>
+        <Pressable
+          style={styles.helpRow}
+          onPress={() => router.push("/chat")}
+        >
           <View style={styles.helpIconCircle}>
-            <Text style={styles.helpIcon}>☺</Text>
+            <Image
+              source={{ uri: MYOO_FACE_URI }}
+              style={styles.helpIconImage}
+              contentFit="cover"
+            />
           </View>
           <View style={styles.helpBubble}>
             <Text style={styles.helpText}>If you need some help..</Text>
           </View>
-        </View>
+        </Pressable>
 
         {!!formattedDate && <Text style={styles.dateText}>{formattedDate}</Text>}
       </View>
@@ -238,10 +247,11 @@ const styles = StyleSheet.create({
     backgroundColor: "#e8bcde",
     alignItems: "center",
     justifyContent: "center",
+    overflow: "hidden",
   },
-  helpIcon: {
-    fontSize: 17,
-    color: "#2e4a42",
+  helpIconImage: {
+    width: "100%",
+    height: "100%",
   },
   helpBubble: {
     backgroundColor: "#eef0be",

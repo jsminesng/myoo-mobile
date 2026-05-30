@@ -1,6 +1,7 @@
 import { getCurrentUser, getProfile } from "@/services/auth";
 import { invokeDiaryChat } from "@/services/chatApi";
 import { saveChatLog } from "@/services/chatStorage";
+import { getDiaryEntries } from "@/services/diaryStorage";
 import { router } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -23,6 +24,11 @@ export default function ChatScreen() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [displayName, setDisplayName] = useState("there");
+  const [chatDiaryContext, setChatDiaryContext] = useState<{
+    date?: string;
+    word?: string;
+    note?: string;
+  } | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const scrollToBottom = (animated = true) => {
     requestAnimationFrame(() => {
@@ -36,10 +42,25 @@ export default function ChatScreen() {
       try {
         const user = await getCurrentUser();
         if (!mounted || !user?.id) return;
-        const profile = await getProfile(user.id);
+        const [profile, diaryEntries] = await Promise.all([
+          getProfile(user.id),
+          getDiaryEntries(),
+        ]);
         if (!mounted) return;
         setDisplayName(
           profile?.display_name || user.email?.split("@")[0] || "there",
+        );
+        const latestWithContent = diaryEntries.find(
+          (entry) => entry.word?.trim() || entry.note?.trim(),
+        );
+        setChatDiaryContext(
+          latestWithContent
+            ? {
+                date: latestWithContent.date || "",
+                word: latestWithContent.word || "",
+                note: latestWithContent.note || "",
+              }
+            : null,
         );
       } catch {
         // Keep default display name on profile load failure.
@@ -66,7 +87,7 @@ export default function ChatScreen() {
       const text = await invokeDiaryChat({
         mode,
         userMessage: content,
-        diaryEntry: null,
+        diaryEntry: chatDiaryContext,
       });
       const aiMessage: ChatMessage = {
         id: `${Date.now()}-ai`,
