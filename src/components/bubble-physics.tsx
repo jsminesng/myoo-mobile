@@ -55,12 +55,12 @@ type DragState = {
 const GRAVITY_Y = 0.6;
 const CLICK_MAX_DURATION_MS = 650;
 const CLICK_MAX_MOVE_PX = 18;
-const BUBBLE_HEIGHT = 68;
+const BUBBLE_HEIGHT = 62;
 
 const estimateBubbleWidth = (item: BubbleItem) => {
-  const textWidthApprox = Math.max(90, item.text.length * 19);
-  const iconExtra = item.iconUrl || item.sketch ? 46 : 0;
-  return Math.min(420, textWidthApprox + 44 + iconExtra);
+  const textWidthApprox = Math.max(78, item.text.length * 16);
+  const iconExtra = item.iconUrl || item.sketch ? 38 : 0;
+  return Math.min(330, textWidthApprox + 28 + iconExtra);
 };
 
 const toDegrees = (radians: number) => `${(radians * 180) / Math.PI}deg`;
@@ -379,10 +379,10 @@ export function BubblePhysics({
                     const parsed = parseSketchToStrokes(body.bubbleSketch);
                     if (parsed) {
                       return (
-                        <Svg width={24} height={24} viewBox="0 0 24 24">
+                        <Svg width={32} height={32} viewBox="0 0 24 24">
                           {parsed.map((stroke, strokeIndex) => {
                             const points = stroke
-                              .map((point) => `${point[0] * 16 + 4},${point[1] * 16 + 4}`)
+                              .map((point) => `${point[0] * 30 - 3},${point[1] * 30 - 3}`)
                               .join(" ");
                             return (
                               <Polyline
@@ -390,7 +390,7 @@ export function BubblePhysics({
                                 points={points}
                                 fill="none"
                                 stroke="#364c41"
-                                strokeWidth={1.8}
+                                strokeWidth={2.4}
                                 strokeLinecap="round"
                                 strokeLinejoin="round"
                               />
@@ -430,10 +430,10 @@ export function BubblePhysics({
                     const parsed = parseSketchToStrokes(item.sketch);
                     if (parsed) {
                       return (
-                        <Svg width={24} height={24} viewBox="0 0 24 24">
+                        <Svg width={32} height={32} viewBox="0 0 24 24">
                           {parsed.map((stroke, strokeIndex) => {
                             const points = stroke
-                              .map((point) => `${point[0] * 16 + 4},${point[1] * 16 + 4}`)
+                              .map((point) => `${point[0] * 30 - 3},${point[1] * 30 - 3}`)
                               .join(" ");
                             return (
                               <Polyline
@@ -441,7 +441,7 @@ export function BubblePhysics({
                                 points={points}
                                 fill="none"
                                 stroke="#364c41"
-                                strokeWidth={1.8}
+                                strokeWidth={2.4}
                                 strokeLinecap="round"
                                 strokeLinejoin="round"
                               />
@@ -482,15 +482,15 @@ const styles = StyleSheet.create({
     position: "absolute",
     backgroundColor: "#35554b",
     borderRadius: 999,
-    paddingHorizontal: 18,
+    paddingHorizontal: 10,
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
+    gap: 9,
     justifyContent: "center",
   },
   bubbleText: {
     color: "#eef0be",
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: "500",
     letterSpacing: -0.3,
   },
