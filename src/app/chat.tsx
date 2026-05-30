@@ -104,10 +104,6 @@ export default function ChatScreen() {
   };
 
   useEffect(() => {
-    scrollToBottom(true);
-  }, [messages.length]);
-
-  useEffect(() => {
     appendQuickMenuMessage();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -128,9 +124,6 @@ export default function ChatScreen() {
         contentContainerStyle={styles.messagesContent}
         showsVerticalScrollIndicator
         scrollEnabled
-        onContentSizeChange={() =>
-          scrollToBottom(false)
-        }
         renderItem={({ item }) =>
           item.role === "menu" ? (
             <View style={styles.heroRow}>

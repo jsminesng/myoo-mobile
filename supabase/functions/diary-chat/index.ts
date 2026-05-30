@@ -118,7 +118,9 @@ serve(async (req) => {
 
     // Guard against responses that end mid-sentence.
     if (text && !/[.!?。！？]$/.test(text)) {
-      const completed = text.match(/^(.*[.!?。！？])[^.!?。！？]*$/s)?.[1]?.trim();
+      const completed = text
+        .match(/^(.*[.!?。！？])[^.!?。！？]*$/s)?.[1]
+        ?.trim();
       text = completed || `${text}.`;
     }
 
@@ -142,4 +144,3 @@ serve(async (req) => {
     );
   }
 });
-
