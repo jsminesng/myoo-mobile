@@ -1,4 +1,5 @@
 import { getDiaryEntryById, resolveDiaryMediaUrl } from "@/services/diaryStorage";
+import { MyooFaceIcon } from "@/components/myoo-face-icon";
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
@@ -7,7 +8,6 @@ import Svg, { Polyline } from "react-native-svg";
 import { Image } from "expo-image";
 
 type SketchPoint = [number, number];
-const MYOO_FACE_SOURCE = require("../../../assets/images/icon.png");
 
 function SketchCircle({ sketch }: { sketch?: string | null }) {
   const parsedSketchStrokes: SketchPoint[][] | null = useMemo(() => {
@@ -148,11 +148,7 @@ export default function EntryDetailScreen() {
           onPress={() => router.push("/chat")}
         >
           <View style={styles.helpIconCircle}>
-            <Image
-              source={MYOO_FACE_SOURCE}
-              style={styles.helpIconImage}
-              contentFit="cover"
-            />
+            <MyooFaceIcon size={38} />
           </View>
           <View style={styles.helpBubble}>
             <Text style={styles.helpText}>If you need some help..</Text>
@@ -247,10 +243,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     overflow: "hidden",
-  },
-  helpIconImage: {
-    width: "100%",
-    height: "100%",
   },
   helpBubble: {
     backgroundColor: "#eef0be",

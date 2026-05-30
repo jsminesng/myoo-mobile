@@ -1,8 +1,8 @@
 import { getCurrentUser, getProfile } from "@/services/auth";
+import { MyooFaceIcon } from "@/components/myoo-face-icon";
 import { invokeDiaryChat } from "@/services/chatApi";
 import { saveChatLog } from "@/services/chatStorage";
 import { getDiaryEntries } from "@/services/diaryStorage";
-import { Image } from "expo-image";
 import { router } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -16,7 +16,6 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 type ChatMessage = { id: string; role: "user" | "ai" | "menu"; text: string };
-const MYOO_FACE_SOURCE = require("../../assets/images/icon.png");
 
 export default function ChatScreen() {
   const listRef = useRef<FlatList<ChatMessage> | null>(null);
@@ -152,11 +151,7 @@ export default function ChatScreen() {
           item.role === "menu" ? (
             <View style={styles.heroRow}>
               <View style={styles.heroFaceCircle}>
-                <Image
-                  source={MYOO_FACE_SOURCE}
-                  style={styles.heroFaceImage}
-                  contentFit="cover"
-                />
+                <MyooFaceIcon size={34} />
               </View>
               <View style={styles.heroBubbleWrap}>
                 <View style={styles.heroBubbleTail} />
@@ -205,11 +200,7 @@ export default function ChatScreen() {
                 style={styles.aiFaceCircle}
                 onPress={appendQuickMenuMessage}
               >
-                <Image
-                  source={MYOO_FACE_SOURCE}
-                  style={styles.aiFaceImage}
-                  contentFit="cover"
-                />
+                <MyooFaceIcon size={34} />
               </Pressable>
               <View style={styles.aiBubbleWrap}>
                 <View style={styles.aiBubbleTail} />
@@ -276,10 +267,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginTop: 18,
     overflow: "hidden",
-  },
-  heroFaceImage: {
-    width: "100%",
-    height: "100%",
   },
   heroCard: {
     backgroundColor: "#eef0be",
@@ -355,10 +342,6 @@ const styles = StyleSheet.create({
     backgroundColor: "#e8bcde",
     overflow: "hidden",
     marginTop: 10,
-  },
-  aiFaceImage: {
-    width: "100%",
-    height: "100%",
   },
   aiBubbleWrap: {
     flex: 1,
