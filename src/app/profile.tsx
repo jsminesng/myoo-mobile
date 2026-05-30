@@ -5,19 +5,177 @@ import {
   updateUserPassword,
   upsertProfile,
 } from "@/services/auth";
+import { getDiaryEntries } from "@/services/diaryStorage";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
-import { useEffect, useState } from "react";
-import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  Modal,
+  PanResponder,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import Svg, { Polyline } from "react-native-svg";
+
+type SketchPoint = [number, number];
+
+const MYOO_EDITOR_SIZE = 260;
+
+const clamp = (value: number, min: number, max: number) =>
+  Math.min(max, Math.max(min, value));
+
+const normalizePointValue = (value: number) => {
+  if (!Number.isFinite(value)) return 0;
+  if (value >= 0 && value <= 1) return value;
+  return clamp(value / MYOO_EDITOR_SIZE, 0, 1);
+};
+
+const parseSketchToNormalizedStrokes = (sketch?: string | null): SketchPoint[][] | null => {
+  if (!sketch) return null;
+  try {
+    const raw = JSON.parse(sketch);
+    if (!Array.isArray(raw)) return null;
+
+    const isFlatPointArray =
+      raw.length > 0 &&
+      Array.isArray(raw[0]) &&
+      raw[0].length === 2 &&
+      Number.isFinite(raw[0][0]) &&
+      Number.isFinite(raw[0][1]);
+
+    if (isFlatPointArray) {
+      const points = raw
+        .filter(
+          (value) =>
+            Array.isArray(value) &&
+            value.length === 2 &&
+            Number.isFinite(value[0]) &&
+            Number.isFinite(value[1]),
+        )
+        .map(
+          (value) =>
+            [normalizePointValue(Number(value[0])), normalizePointValue(Number(value[1]))] as SketchPoint,
+        );
+      return points.length > 1 ? [points] : null;
+    }
+
+    const strokes = raw
+      .filter((stroke) => Array.isArray(stroke))
+      .map((stroke) =>
+        stroke
+          .filter(
+            (value: any) =>
+              Array.isArray(value) &&
+              value.length === 2 &&
+              Number.isFinite(value[0]) &&
+              Number.isFinite(value[1]),
+          )
+          .map(
+            (value: any) =>
+              [normalizePointValue(Number(value[0])), normalizePointValue(Number(value[1]))] as SketchPoint,
+          ),
+      )
+      .filter((stroke) => stroke.length > 1);
+
+    return strokes.length > 0 ? strokes : null;
+  } catch {
+    return null;
+  }
+};
+
+const buildSketchPayload = (strokes: SketchPoint[][]) => {
+  const validStrokes = strokes.filter((stroke) => stroke.length > 1);
+  if (validStrokes.length === 0) return null;
+
+  const maxPointsPerStroke = 60;
+  const normalizedStrokes = validStrokes.map((stroke) => {
+    const step = Math.max(1, Math.ceil(stroke.length / maxPointsPerStroke));
+    return stroke
+      .filter((_, index) => index % step === 0)
+      .map((point) => [
+        Number((clamp(point[0], 0, MYOO_EDITOR_SIZE) / MYOO_EDITOR_SIZE).toFixed(3)),
+        Number((clamp(point[1], 0, MYOO_EDITOR_SIZE) / MYOO_EDITOR_SIZE).toFixed(3)),
+      ]);
+  });
+  return JSON.stringify(normalizedStrokes);
+};
 
 export default function ProfileScreen() {
   const [userId, setUserId] = useState<string | null>(null);
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
   const [password, setPassword] = useState("");
+  const [myooSketch, setMyooSketch] = useState<string | null>(null);
+  const [isEditorVisible, setIsEditorVisible] = useState(false);
+  const [draftStrokes, setDraftStrokes] = useState<SketchPoint[][]>([]);
+  const [activeStroke, setActiveStroke] = useState<SketchPoint[]>([]);
+  const activeStrokeRef = useRef<SketchPoint[]>([]);
   const [saving, setSaving] = useState(false);
   const [errorText, setErrorText] = useState("");
+
+  const parsedMyooStrokes = useMemo(
+    () => parseSketchToNormalizedStrokes(myooSketch),
+    [myooSketch],
+  );
+  const editorPreviewStrokes = useMemo(
+    () => [...draftStrokes, activeStroke].filter((stroke) => stroke.length > 1),
+    [draftStrokes, activeStroke],
+  );
+
+  const panResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => true,
+        onMoveShouldSetPanResponder: () => true,
+        onPanResponderTerminationRequest: () => false,
+        onPanResponderGrant: (event) => {
+          const { locationX, locationY } = event.nativeEvent;
+          const nextStroke: SketchPoint[] = [
+            [clamp(locationX, 0, MYOO_EDITOR_SIZE), clamp(locationY, 0, MYOO_EDITOR_SIZE)],
+          ];
+          activeStrokeRef.current = nextStroke;
+          setActiveStroke(nextStroke);
+        },
+        onPanResponderMove: (event) => {
+          const { locationX, locationY } = event.nativeEvent;
+          const nextStroke: SketchPoint[] = [
+            ...activeStrokeRef.current,
+            [clamp(locationX, 0, MYOO_EDITOR_SIZE), clamp(locationY, 0, MYOO_EDITOR_SIZE)],
+          ];
+          activeStrokeRef.current = nextStroke;
+          setActiveStroke(nextStroke);
+        },
+        onPanResponderRelease: () => {
+          const committedStroke = [...activeStrokeRef.current];
+          setDraftStrokes((prev) =>
+            committedStroke.length > 1 ? [...prev, committedStroke] : prev,
+          );
+          activeStrokeRef.current = [];
+          setActiveStroke([]);
+        },
+        onPanResponderEnd: () => {
+          const committedStroke = [...activeStrokeRef.current];
+          setDraftStrokes((prev) =>
+            committedStroke.length > 1 ? [...prev, committedStroke] : prev,
+          );
+          activeStrokeRef.current = [];
+          setActiveStroke([]);
+        },
+        onPanResponderTerminate: () => {
+          const committedStroke = [...activeStrokeRef.current];
+          setDraftStrokes((prev) =>
+            committedStroke.length > 1 ? [...prev, committedStroke] : prev,
+          );
+          activeStrokeRef.current = [];
+          setActiveStroke([]);
+        },
+      }),
+    [],
+  );
 
   useEffect(() => {
     let mounted = true;
@@ -30,6 +188,14 @@ export default function ProfileScreen() {
         const profile = await getProfile(user.id);
         if (!mounted) return;
         setName(profile?.display_name || user.email?.split("@")[0] || "");
+        if (profile?.myoo_sketch) {
+          setMyooSketch(profile.myoo_sketch);
+        } else {
+          const diaryEntries = await getDiaryEntries();
+          if (!mounted) return;
+          const latestFeeling = diaryEntries.find((entry) => Boolean(entry.feeling))?.feeling || null;
+          setMyooSketch(latestFeeling);
+        }
       } catch (error: any) {
         if (mounted) setErrorText(error?.message || "Failed to load profile.");
       }
@@ -49,6 +215,7 @@ export default function ProfileScreen() {
         userId,
         displayName: name.trim() || "User",
         onboardingCompleted: true,
+        myooSketch,
       });
       if (password.trim()) {
         if (password.trim().length < 6) {
@@ -65,6 +232,26 @@ export default function ProfileScreen() {
     }
   };
 
+  const openEditor = () => {
+    const normalized = parseSketchToNormalizedStrokes(myooSketch);
+    const denormalized = (normalized || []).map((stroke) =>
+      stroke.map(
+        (point) =>
+          [point[0] * MYOO_EDITOR_SIZE, point[1] * MYOO_EDITOR_SIZE] as SketchPoint,
+      ),
+    );
+    setDraftStrokes(denormalized);
+    activeStrokeRef.current = [];
+    setActiveStroke([]);
+    setIsEditorVisible(true);
+  };
+
+  const applyEditor = () => {
+    const payload = buildSketchPayload(editorPreviewStrokes);
+    setMyooSketch(payload);
+    setIsEditorVisible(false);
+  };
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <LinearGradient
@@ -74,13 +261,44 @@ export default function ProfileScreen() {
         style={StyleSheet.absoluteFill}
       />
       <View style={styles.container}>
-        <Text style={styles.title}>Profile</Text>
+        <View style={styles.headerRow}>
+          <Pressable
+            style={styles.backButton}
+            onPress={() => router.push("/home")}
+          >
+            <Text style={styles.backButtonText}>‹</Text>
+          </Pressable>
+          <Text style={styles.title}>Profile</Text>
+          <View style={styles.headerSpacer} />
+        </View>
 
         <View style={styles.myooSection}>
           <Text style={styles.myooLabel}>Your MYOO</Text>
-          <View style={styles.myooFace}>
-            <Text style={styles.faceText}>☺</Text>
-          </View>
+          <Pressable style={styles.myooFace} onPress={openEditor}>
+            {parsedMyooStrokes ? (
+              <Svg width={132} height={132} viewBox="0 0 132 132">
+                {parsedMyooStrokes.map((stroke, index) => {
+                  const points = stroke
+                    .map((point) => `${point[0] * 104 + 14},${point[1] * 104 + 14}`)
+                    .join(" ");
+                  return (
+                    <Polyline
+                      key={`profile-stroke-${index}`}
+                      points={points}
+                      fill="none"
+                      stroke="#334844"
+                      strokeWidth={4}
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  );
+                })}
+              </Svg>
+            ) : (
+              <Text style={styles.faceText}>☺</Text>
+            )}
+          </Pressable>
+          <Text style={styles.myooHint}>Tap to edit</Text>
         </View>
 
         <Text style={styles.label}>Email</Text>
@@ -140,6 +358,59 @@ export default function ProfileScreen() {
           <Text style={styles.logoutText}>Log out</Text>
         </Pressable>
       </View>
+
+      <Modal
+        visible={isEditorVisible}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setIsEditorVisible(false)}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Edit Your MYOO</Text>
+            <View style={styles.modalCanvas} {...panResponder.panHandlers}>
+              <Svg width={MYOO_EDITOR_SIZE} height={MYOO_EDITOR_SIZE}>
+                {editorPreviewStrokes.map((stroke, index) => (
+                  <Polyline
+                    key={`editor-stroke-${index}`}
+                    points={stroke.map((point) => `${point[0]},${point[1]}`).join(" ")}
+                    fill="none"
+                    stroke="#334844"
+                    strokeWidth={4}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                ))}
+              </Svg>
+            </View>
+            <View style={styles.modalButtons}>
+              <Pressable
+                style={styles.modalGhostButton}
+                onPress={() => {
+                  setDraftStrokes([]);
+                  activeStrokeRef.current = [];
+                  setActiveStroke([]);
+                }}
+              >
+                <Text style={styles.modalGhostText}>Clear</Text>
+              </Pressable>
+              <Pressable
+                style={styles.modalGhostButton}
+                onPress={() => {
+                  activeStrokeRef.current = [];
+                  setActiveStroke([]);
+                  setIsEditorVisible(false);
+                }}
+              >
+                <Text style={styles.modalGhostText}>Cancel</Text>
+              </Pressable>
+              <Pressable style={styles.modalSaveButton} onPress={applyEditor}>
+                <Text style={styles.modalSaveText}>Apply</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -154,8 +425,30 @@ const styles = StyleSheet.create({
     paddingHorizontal: 22,
     paddingBottom: 24,
   },
+  headerRow: {
+    marginTop: 20,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  backButtonText: {
+    color: "#334844",
+    fontSize: 34,
+    lineHeight: 34,
+    fontWeight: "400",
+  },
+  headerSpacer: {
+    width: 40,
+    height: 40,
+  },
   title: {
-    marginTop: 26,
     color: "#334844",
     fontSize: 42,
     fontWeight: "600",
@@ -210,6 +503,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  myooHint: {
+    marginTop: 8,
+    alignSelf: "center",
+    color: "#4f5f5a",
+    fontSize: 13,
+  },
   faceText: {
     fontSize: 62,
     color: "#334844",
@@ -245,5 +544,65 @@ const styles = StyleSheet.create({
     color: "#334844",
     fontSize: 14,
     textDecorationLine: "underline",
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(26, 35, 33, 0.45)",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 18,
+  },
+  modalCard: {
+    width: "100%",
+    maxWidth: 380,
+    borderRadius: 24,
+    backgroundColor: "#f1efd0",
+    padding: 16,
+  },
+  modalTitle: {
+    color: "#334844",
+    fontSize: 20,
+    fontWeight: "700",
+    textAlign: "center",
+  },
+  modalCanvas: {
+    marginTop: 12,
+    width: MYOO_EDITOR_SIZE,
+    height: MYOO_EDITOR_SIZE,
+    borderRadius: 20,
+    alignSelf: "center",
+    backgroundColor: "#eef0be",
+    overflow: "hidden",
+  },
+  modalButtons: {
+    marginTop: 14,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: 8,
+  },
+  modalGhostButton: {
+    flex: 1,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#7d8b86",
+    paddingVertical: 8,
+    alignItems: "center",
+  },
+  modalGhostText: {
+    color: "#334844",
+    fontSize: 15,
+    fontWeight: "600",
+  },
+  modalSaveButton: {
+    flex: 1,
+    borderRadius: 14,
+    backgroundColor: "#334844",
+    paddingVertical: 8,
+    alignItems: "center",
+  },
+  modalSaveText: {
+    color: "#eef0be",
+    fontSize: 15,
+    fontWeight: "700",
   },
 });

@@ -1,4 +1,5 @@
 // deno-lint-ignore-file no-explicit-any
+// @ts-nocheck
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 
 const corsHeaders = {
@@ -33,9 +34,11 @@ const buildPrompt = ({
 }) => {
   const context = getDiaryContext(diaryEntry);
   const base = `You are a helpful diary assistant.
-Keep your response short (2-3 sentences max).
+Keep your response concise but complete.
+Usually respond in 2-3 short sentences.
 Do not use markdown formatting, bullets, or headings.
-Use plain conversational tone.`;
+Use plain conversational tone.
+Always end with a complete sentence. Never end mid-sentence.`;
 
   if (mode === "clear_advice") {
     return `${base}
@@ -100,18 +103,24 @@ serve(async (req) => {
           ],
           generationConfig: {
             temperature: 0.7,
-            maxOutputTokens: 220,
+            maxOutputTokens: 260,
           },
         }),
       },
     );
 
     const geminiData = await geminiResponse.json();
-    const text =
+    let text =
       geminiData?.candidates?.[0]?.content?.parts
         ?.map((part: any) => part?.text || "")
         .join("")
         .trim() || "";
+
+    // Guard against responses that end mid-sentence.
+    if (text && !/[.!?。！？]$/.test(text)) {
+      const completed = text.match(/^(.*[.!?。！？])[^.!?。！？]*$/s)?.[1]?.trim();
+      text = completed || `${text}.`;
+    }
 
     if (!text) {
       throw new Error("Gemini returned empty text.");

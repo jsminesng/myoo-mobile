@@ -1,6 +1,7 @@
 import { getCurrentUser, getProfile } from "@/services/auth";
 import { DiaryEntry, getDiaryEntries } from "@/services/diaryStorage";
 import { LinearGradient } from "expo-linear-gradient";
+import { SymbolView } from "expo-symbols";
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -22,6 +23,53 @@ const BUBBLE_ZONE_HEIGHT = 260;
 const BUBBLE_GAP = 10;
 type SketchPoint = [number, number];
 
+const parseSketchToStrokes = (sketch?: string | null): SketchPoint[][] | null => {
+  if (!sketch) return null;
+  try {
+    const raw = JSON.parse(sketch);
+    if (!Array.isArray(raw)) return null;
+
+    const isFlatPointArray =
+      raw.length > 0 &&
+      Array.isArray(raw[0]) &&
+      raw[0].length === 2 &&
+      Number.isFinite(raw[0][0]) &&
+      Number.isFinite(raw[0][1]);
+
+    if (isFlatPointArray) {
+      const points = raw
+        .filter(
+          (value) =>
+            Array.isArray(value) &&
+            value.length === 2 &&
+            Number.isFinite(value[0]) &&
+            Number.isFinite(value[1]),
+        )
+        .map((value) => [Number(value[0]), Number(value[1])] as SketchPoint);
+      return points.length > 1 ? [points] : null;
+    }
+
+    const strokes = raw
+      .filter((stroke) => Array.isArray(stroke))
+      .map((stroke) =>
+        stroke
+          .filter(
+            (value: any) =>
+              Array.isArray(value) &&
+              value.length === 2 &&
+              Number.isFinite(value[0]) &&
+              Number.isFinite(value[1]),
+          )
+          .map((value: any) => [Number(value[0]), Number(value[1])] as SketchPoint),
+      )
+      .filter((stroke) => stroke.length > 1);
+
+    return strokes.length > 0 ? strokes : null;
+  } catch {
+    return null;
+  }
+};
+
 const getBubbleWordFromEntry = (entry: DiaryEntry) => {
   const savedWord = entry.word?.trim();
   if (savedWord) return savedWord;
@@ -37,6 +85,7 @@ const getBubbleWordFromEntry = (entry: DiaryEntry) => {
 export default function HomeScreen() {
   const { drop, word } = useLocalSearchParams<{ drop?: string; word?: string }>();
   const [name, setName] = useState("there");
+  const [myooSketch, setMyooSketch] = useState<string | null>(null);
   const [entries, setEntries] = useState<DiaryEntry[]>([]);
   const [todayWord, setTodayWord] = useState("");
 
@@ -55,6 +104,7 @@ export default function HomeScreen() {
         ]);
         if (!mounted) return;
         setName(profile?.display_name || user.email?.split("@")[0] || "there");
+        setMyooSketch(profile?.myoo_sketch || null);
         setEntries(diaryEntries);
       } catch {
         if (!mounted) return;
@@ -90,6 +140,7 @@ export default function HomeScreen() {
   }, [entries, word]);
 
   const bubbleWords = useMemo(() => bubbleSourceEntries.map((entry) => entry.word), [bubbleSourceEntries]);
+  const myooStrokes = useMemo(() => parseSketchToStrokes(myooSketch), [myooSketch]);
   const hasTypedWord = todayWord.trim().length > 0;
   const moveToFeelingPage = () => {
     const word = todayWord.trim();
@@ -196,7 +247,12 @@ export default function HomeScreen() {
             style={styles.iconButton}
             onPress={() => router.push("/profile")}
           >
-            <Text style={styles.iconText}>S</Text>
+            <SymbolView
+              name="gearshape"
+              size={30}
+              weight="regular"
+              tintColor="#35554b"
+            />
           </Pressable>
 
           <View style={styles.chatHintWrap}>
@@ -204,15 +260,34 @@ export default function HomeScreen() {
               style={styles.chatHint}
               onPress={() => router.push("/chat")}
             >
-              <Text style={styles.chatHintText}>
-                If you need some advise...
-              </Text>
+              <Text style={styles.chatHintText}>If you need some advise...</Text>
             </Pressable>
             <Pressable
               style={styles.chatCircle}
               onPress={() => router.push("/chat")}
             >
-              <Text style={styles.chatCircleText}>:)</Text>
+              {myooStrokes ? (
+                <Svg width={30} height={30} viewBox="0 0 30 30">
+                  {myooStrokes.map((stroke, index) => {
+                    const points = stroke
+                      .map((point) => `${point[0] * 20 + 5},${point[1] * 20 + 5}`)
+                      .join(" ");
+                    return (
+                      <Polyline
+                        key={`myoo-stroke-${index}`}
+                        points={points}
+                        fill="none"
+                        stroke="#f2f0bd"
+                        strokeWidth={2.2}
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    );
+                  })}
+                </Svg>
+              ) : (
+                <Text style={styles.chatCircleText}>:)</Text>
+              )}
             </Pressable>
           </View>
         </View>
@@ -379,15 +454,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   iconButton: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: "center",
     justifyContent: "center",
-  },
-  iconText: {
-    fontSize: 19,
-    color: "#2f4b45",
   },
   chatHintWrap: {
     flexDirection: "row",
@@ -484,7 +555,6 @@ const styles = StyleSheet.create({
   wordChipText: {
     color: "#eef0be",
     fontSize: 43,
-    fontStyle: "italic",
     fontWeight: "600",
     letterSpacing: -0.7,
   },

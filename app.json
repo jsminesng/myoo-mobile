@@ -4,18 +4,17 @@
     "slug": "myoo",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "/Users/seungeunsong/.cursor/projects/Users-seungeunsong-myoo/assets/___________2026-05-30_23.02.47-781b8380-44e6-4647-ad83-6fc8d1138c9b.png",
     "scheme": "myoo",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./assets/expo.icon"
+      "icon": "/Users/seungeunsong/.cursor/projects/Users-seungeunsong-myoo/assets/___________2026-05-30_23.02.47-781b8380-44e6-4647-ad83-6fc8d1138c9b.png"
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "backgroundImage": "./assets/images/android-icon-background.png",
-        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+        "backgroundColor": "#35554b",
+        "foregroundImage": "/Users/seungeunsong/.cursor/projects/Users-seungeunsong-myoo/assets/___________2026-05-30_23.02.47-781b8380-44e6-4647-ad83-6fc8d1138c9b.png",
+        "monochromeImage": "/Users/seungeunsong/.cursor/projects/Users-seungeunsong-myoo/assets/___________2026-05-30_23.02.47-781b8380-44e6-4647-ad83-6fc8d1138c9b.png"
       },
       "predictiveBackGestureEnabled": false
     },

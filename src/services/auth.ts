@@ -65,15 +65,17 @@ export const upsertProfile = async (params: {
   userId: string;
   displayName: string;
   onboardingCompleted?: boolean;
+  myooSketch?: string | null;
 }) => {
   if (!isSupabaseConfigured || !supabase) {
     throw new Error("Supabase is not configured.");
   }
-  const { userId, displayName, onboardingCompleted = true } = params;
+  const { userId, displayName, onboardingCompleted = true, myooSketch } = params;
   const payload = {
     id: userId,
     display_name: displayName,
     onboarding_completed: onboardingCompleted,
+    ...(myooSketch !== undefined ? { myoo_sketch: myooSketch } : {}),
     updated_at: new Date().toISOString(),
   };
   const { data, error } = await supabase

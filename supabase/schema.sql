@@ -3,6 +3,7 @@ create extension if not exists "pgcrypto";
 create table if not exists public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   display_name text,
+  myoo_sketch text,
   onboarding_completed boolean not null default false,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -34,6 +35,9 @@ create table if not exists public.chat_logs (
 -- Add missing columns safely for migration scenarios.
 alter table public.diary_entries
   add column if not exists user_id uuid;
+
+alter table public.profiles
+  add column if not exists myoo_sketch text;
 
 do $$
 begin

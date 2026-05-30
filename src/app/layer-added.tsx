@@ -349,7 +349,6 @@ const styles = StyleSheet.create({
   wordChipText: {
     color: "#eef0be",
     fontSize: 26,
-    fontStyle: "italic",
     fontWeight: "600",
   },
   emojiCircle: {
