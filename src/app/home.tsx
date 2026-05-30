@@ -14,11 +14,13 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import Svg, { Polyline } from "react-native-svg";
 
 const SCREEN_WIDTH = Dimensions.get("window").width;
 const SCREEN_HEIGHT = Dimensions.get("window").height;
 const BUBBLE_ZONE_HEIGHT = 260;
 const BUBBLE_GAP = 10;
+type SketchPoint = [number, number];
 
 const getBubbleWordFromEntry = (entry: DiaryEntry) => {
   const savedWord = entry.word?.trim();
@@ -70,6 +72,7 @@ export default function HomeScreen() {
       .map((entry) => ({
         id: entry.id,
         word: getBubbleWordFromEntry(entry),
+        feeling: entry.feeling,
       }))
       .filter((entry) => Boolean(entry.word))
       .slice(0, 10);
@@ -83,7 +86,7 @@ export default function HomeScreen() {
       return savedEntries;
     }
 
-    return [{ id: `incoming-${incomingWord}`, word: incomingWord }, ...savedEntries].slice(0, 10);
+    return [{ id: `incoming-${incomingWord}`, word: incomingWord, feeling: null }, ...savedEntries].slice(0, 10);
   }, [entries, word]);
 
   const bubbleWords = useMemo(() => bubbleSourceEntries.map((entry) => entry.word), [bubbleSourceEntries]);
@@ -112,7 +115,7 @@ export default function HomeScreen() {
     }> = [];
 
     bubbleSourceEntries.forEach(({ id, word }, index) => {
-      const widthEstimate = Math.max(108, Math.min(236, word.length * 24 + 64));
+      const widthEstimate = Math.max(160, Math.min(300, word.length * 24 + 112));
       const heightEstimate = 76;
       const minLeft = 8;
       const minTop = 10;
@@ -274,6 +277,82 @@ export default function HomeScreen() {
                 }}
               >
                 <Text style={styles.wordChipText}>{item.word}</Text>
+                <View style={styles.bubbleFaceCircle}>
+                  {(() => {
+                    const sketch = bubbleSourceEntries.find((entry) => entry.id === item.id)?.feeling;
+                    if (!sketch) {
+                      return <Text style={styles.bubbleFaceIcon}>:)</Text>;
+                    }
+                    let parsedSketchStrokes: SketchPoint[][] | null = null;
+                    try {
+                      const raw = JSON.parse(sketch);
+                      if (Array.isArray(raw)) {
+                        const isFlatPointArray =
+                          raw.length > 0 &&
+                          Array.isArray(raw[0]) &&
+                          raw[0].length === 2 &&
+                          Number.isFinite(raw[0][0]) &&
+                          Number.isFinite(raw[0][1]);
+
+                        if (isFlatPointArray) {
+                          const points = raw
+                            .filter(
+                              (value) =>
+                                Array.isArray(value) &&
+                                value.length === 2 &&
+                                Number.isFinite(value[0]) &&
+                                Number.isFinite(value[1]),
+                            )
+                            .map((value) => [Number(value[0]), Number(value[1])] as SketchPoint);
+                          parsedSketchStrokes = points.length > 1 ? [points] : null;
+                        } else {
+                          const strokes = raw
+                            .filter((stroke) => Array.isArray(stroke))
+                            .map((stroke) =>
+                              stroke
+                                .filter(
+                                  (value: any) =>
+                                    Array.isArray(value) &&
+                                    value.length === 2 &&
+                                    Number.isFinite(value[0]) &&
+                                    Number.isFinite(value[1]),
+                                )
+                                .map((value: any) => [Number(value[0]), Number(value[1])] as SketchPoint),
+                            )
+                            .filter((stroke) => stroke.length > 1);
+                          parsedSketchStrokes = strokes.length > 0 ? strokes : null;
+                        }
+                      }
+                    } catch {
+                      parsedSketchStrokes = null;
+                    }
+
+                    if (!parsedSketchStrokes) {
+                      return <Text style={styles.bubbleFaceIcon}>:)</Text>;
+                    }
+
+                    return (
+                      <Svg width={56} height={56} viewBox="0 0 56 56">
+                        {parsedSketchStrokes.map((stroke, strokeIndex) => {
+                          const points = stroke
+                            .map((point) => `${point[0] * 40 + 8},${point[1] * 40 + 8}`)
+                            .join(" ");
+                          return (
+                            <Polyline
+                              key={`stroke-${strokeIndex}`}
+                              points={points}
+                              fill="none"
+                              stroke="#35554b"
+                              strokeWidth={3.2}
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            />
+                          );
+                        })}
+                      </Svg>
+                    );
+                  })()}
+                </View>
               </Pressable>
             </Animated.View>
           ))}
@@ -394,15 +473,33 @@ const styles = StyleSheet.create({
     position: "absolute",
   },
   wordChip: {
-    backgroundColor: "#334844",
-    borderRadius: 28,
+    backgroundColor: "#35554b",
+    borderRadius: 999,
     paddingVertical: 10,
     paddingHorizontal: 18,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
   },
   wordChipText: {
-    color: "#f7f4c5",
+    color: "#eef0be",
     fontSize: 43,
-    fontWeight: "500",
+    fontStyle: "italic",
+    fontWeight: "600",
     letterSpacing: -0.7,
+  },
+  bubbleFaceCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: "#e6e7b8",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  bubbleFaceIcon: {
+    color: "#35554b",
+    fontSize: 28,
+    fontWeight: "700",
+    marginTop: -2,
   },
 });
