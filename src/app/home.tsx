@@ -146,7 +146,11 @@ export default function HomeScreen() {
   };
 
   const bubblePhysicsItems = useMemo(
-    () => bubbleSourceEntries.map((entry) => ({ text: entry.word })),
+    () =>
+      bubbleSourceEntries.map((entry) => ({
+        text: entry.word,
+        sketch: entry.feeling,
+      })),
     [bubbleSourceEntries],
   );
 

@@ -7,8 +7,7 @@ import Svg, { Polyline } from "react-native-svg";
 import { Image } from "expo-image";
 
 type SketchPoint = [number, number];
-const MYOO_FACE_URI =
-  "file:///Users/seungeunsong/.cursor/projects/Users-seungeunsong-myoo/assets/___________2026-05-30_23.02.47-781b8380-44e6-4647-ad83-6fc8d1138c9b.png";
+const MYOO_FACE_SOURCE = require("../../../assets/images/icon.png");
 
 function SketchCircle({ sketch }: { sketch?: string | null }) {
   const parsedSketchStrokes: SketchPoint[][] | null = useMemo(() => {
@@ -150,7 +149,7 @@ export default function EntryDetailScreen() {
         >
           <View style={styles.helpIconCircle}>
             <Image
-              source={{ uri: MYOO_FACE_URI }}
+              source={MYOO_FACE_SOURCE}
               style={styles.helpIconImage}
               contentFit="cover"
             />

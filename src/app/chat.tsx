@@ -16,8 +16,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 type ChatMessage = { id: string; role: "user" | "ai" | "menu"; text: string };
-const MYOO_FACE_URI =
-  "file:///Users/seungeunsong/.cursor/projects/Users-seungeunsong-myoo/assets/___________2026-05-30_23.02.47-781b8380-44e6-4647-ad83-6fc8d1138c9b.png";
+const MYOO_FACE_SOURCE = require("../../assets/images/icon.png");
 
 export default function ChatScreen() {
   const listRef = useRef<FlatList<ChatMessage> | null>(null);
@@ -154,7 +153,7 @@ export default function ChatScreen() {
             <View style={styles.heroRow}>
               <View style={styles.heroFaceCircle}>
                 <Image
-                  source={{ uri: MYOO_FACE_URI }}
+                  source={MYOO_FACE_SOURCE}
                   style={styles.heroFaceImage}
                   contentFit="cover"
                 />
@@ -207,7 +206,7 @@ export default function ChatScreen() {
                 onPress={appendQuickMenuMessage}
               >
                 <Image
-                  source={{ uri: MYOO_FACE_URI }}
+                  source={MYOO_FACE_SOURCE}
                   style={styles.aiFaceImage}
                   contentFit="cover"
                 />

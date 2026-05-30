@@ -13,14 +13,17 @@ import {
   Image,
   LayoutChangeEvent,
   PanResponder,
+  Pressable,
   StyleSheet,
   Text,
   View,
 } from "react-native";
+import Svg, { Polyline } from "react-native-svg";
 
 type BubbleItem = {
   text: string;
   iconUrl?: string;
+  sketch?: string | null;
 };
 
 type BubblePhysicsProps = {
@@ -33,6 +36,7 @@ type BubbleBody = ReturnType<typeof Bodies.rectangle> & {
   bubbleIndex: number;
   bubbleText: string;
   bubbleIconUrl?: string;
+  bubbleSketch?: string | null;
   bubbleWidth: number;
   bubbleHeight: number;
 };
@@ -45,20 +49,70 @@ type DragState = {
   offsetX: number;
   offsetY: number;
   movedDistance: number;
+  isDragging: boolean;
 };
 
 const GRAVITY_Y = 0.6;
-const CLICK_MAX_DURATION_MS = 280;
-const CLICK_MAX_MOVE_PX = 10;
-const BUBBLE_HEIGHT = 54;
+const CLICK_MAX_DURATION_MS = 650;
+const CLICK_MAX_MOVE_PX = 18;
+const BUBBLE_HEIGHT = 68;
 
 const estimateBubbleWidth = (item: BubbleItem) => {
-  const textWidthApprox = Math.max(80, item.text.length * 12);
-  const iconExtra = item.iconUrl ? 34 : 0;
-  return Math.min(340, textWidthApprox + 36 + iconExtra);
+  const textWidthApprox = Math.max(90, item.text.length * 19);
+  const iconExtra = item.iconUrl || item.sketch ? 46 : 0;
+  return Math.min(420, textWidthApprox + 44 + iconExtra);
 };
 
 const toDegrees = (radians: number) => `${(radians * 180) / Math.PI}deg`;
+
+type SketchPoint = [number, number];
+
+const parseSketchToStrokes = (sketch?: string | null): SketchPoint[][] | null => {
+  if (!sketch) return null;
+  try {
+    const raw = JSON.parse(sketch);
+    if (!Array.isArray(raw)) return null;
+
+    const isFlatPointArray =
+      raw.length > 0 &&
+      Array.isArray(raw[0]) &&
+      raw[0].length === 2 &&
+      Number.isFinite(raw[0][0]) &&
+      Number.isFinite(raw[0][1]);
+
+    if (isFlatPointArray) {
+      const points = raw
+        .filter(
+          (value) =>
+            Array.isArray(value) &&
+            value.length === 2 &&
+            Number.isFinite(value[0]) &&
+            Number.isFinite(value[1]),
+        )
+        .map((value) => [Number(value[0]), Number(value[1])] as SketchPoint);
+      return points.length > 1 ? [points] : null;
+    }
+
+    const strokes = raw
+      .filter((stroke) => Array.isArray(stroke))
+      .map((stroke) =>
+        stroke
+          .filter(
+            (value: any) =>
+              Array.isArray(value) &&
+              value.length === 2 &&
+              Number.isFinite(value[0]) &&
+              Number.isFinite(value[1]),
+          )
+          .map((value: any) => [Number(value[0]), Number(value[1])] as SketchPoint),
+      )
+      .filter((stroke) => stroke.length > 1);
+
+    return strokes.length > 0 ? strokes : null;
+  } catch {
+    return null;
+  }
+};
 
 export function BubblePhysics({
   items,
@@ -131,6 +185,7 @@ export function BubblePhysics({
       body.bubbleIndex = index;
       body.bubbleText = item.text;
       body.bubbleIconUrl = item.iconUrl;
+      body.bubbleSketch = item.sketch || null;
       body.bubbleWidth = width;
       body.bubbleHeight = BUBBLE_HEIGHT;
       Body.setAngle(body, initialAngle);
@@ -175,8 +230,10 @@ export function BubblePhysics({
   const panResponder = useMemo(
     () =>
       PanResponder.create({
-        onStartShouldSetPanResponder: () => enabled,
+        onStartShouldSetPanResponder: () => false,
         onMoveShouldSetPanResponder: () => enabled,
+        onStartShouldSetPanResponderCapture: () => false,
+        onMoveShouldSetPanResponderCapture: () => enabled,
         onPanResponderGrant: (event: GestureResponderEvent) => {
           if (!enabled) return;
           const { locationX, locationY } = event.nativeEvent;
@@ -194,8 +251,8 @@ export function BubblePhysics({
             offsetX: locationX - hit.position.x,
             offsetY: locationY - hit.position.y,
             movedDistance: 0,
+            isDragging: false,
           };
-          Body.setStatic(hit, true);
         },
         onPanResponderMove: (event: GestureResponderEvent) => {
           const drag = dragRef.current;
@@ -206,13 +263,55 @@ export function BubblePhysics({
           const dx = locationX - drag.startX;
           const dy = locationY - drag.startY;
           drag.movedDistance = Math.sqrt(dx * dx + dy * dy);
+          if (!drag.isDragging && drag.movedDistance > 3) {
+            drag.isDragging = true;
+            Body.setStatic(drag.body, true);
+          }
           Body.setPosition(drag.body, { x: nextX, y: nextY });
           Body.setVelocity(drag.body, { x: 0, y: 0 });
         },
-        onPanResponderRelease: () => {
+        onPanResponderRelease: (event: GestureResponderEvent) => {
+          const drag = dragRef.current;
+          if (drag) {
+            if (drag.isDragging) {
+              Body.setStatic(drag.body, false);
+            }
+            const elapsed = Date.now() - drag.startedAt;
+            if (
+              elapsed <= CLICK_MAX_DURATION_MS &&
+              drag.movedDistance <= CLICK_MAX_MOVE_PX
+            ) {
+              const index = drag.body.bubbleIndex;
+              const item = items[index];
+              if (item) {
+                onBubbleClick?.(item, index);
+              }
+            }
+            dragRef.current = null;
+            return;
+          }
+
+          // Fallback: if start hit-test missed, try release-point hit-test.
+          const { locationX, locationY } = event.nativeEvent;
+          const releaseHits = Query.point(worldBodiesRef.current, {
+            x: locationX,
+            y: locationY,
+          }) as BubbleBody[];
+          const releaseHit = releaseHits[0];
+          if (releaseHit) {
+            const index = releaseHit.bubbleIndex;
+            const item = items[index];
+            if (item) {
+              onBubbleClick?.(item, index);
+            }
+          }
+        },
+        onPanResponderEnd: () => {
           const drag = dragRef.current;
           if (!drag) return;
-          Body.setStatic(drag.body, false);
+          if (drag.isDragging) {
+            Body.setStatic(drag.body, false);
+          }
 
           const elapsed = Date.now() - drag.startedAt;
           if (
@@ -230,7 +329,20 @@ export function BubblePhysics({
         onPanResponderTerminate: () => {
           const drag = dragRef.current;
           if (!drag) return;
-          Body.setStatic(drag.body, false);
+          if (drag.isDragging) {
+            Body.setStatic(drag.body, false);
+          }
+          const elapsed = Date.now() - drag.startedAt;
+          if (
+            elapsed <= CLICK_MAX_DURATION_MS &&
+            drag.movedDistance <= CLICK_MAX_MOVE_PX
+          ) {
+            const index = drag.body.bubbleIndex;
+            const item = items[index];
+            if (item) {
+              onBubbleClick?.(item, index);
+            }
+          }
           dragRef.current = null;
         },
       }),
@@ -241,8 +353,14 @@ export function BubblePhysics({
     <View style={styles.container} onLayout={onLayout} {...panResponder.panHandlers}>
       {enabled
         ? renderBodies.map((body) => (
-            <View
+            <Pressable
               key={`${body.bubbleIndex}-${body.id}`}
+              onPress={() => {
+                const item = items[body.bubbleIndex];
+                if (item) {
+                  onBubbleClick?.(item, body.bubbleIndex);
+                }
+              }}
               style={[
                 styles.bubble,
                 {
@@ -255,16 +373,45 @@ export function BubblePhysics({
               ]}
             >
               <Text style={styles.bubbleText}>{body.bubbleText}</Text>
-              {body.bubbleIconUrl ? (
+              {body.bubbleIconUrl || body.bubbleSketch ? (
                 <View style={styles.iconCircle}>
-                  <Image source={{ uri: body.bubbleIconUrl }} style={styles.iconImage} />
+                  {(() => {
+                    const parsed = parseSketchToStrokes(body.bubbleSketch);
+                    if (parsed) {
+                      return (
+                        <Svg width={24} height={24} viewBox="0 0 24 24">
+                          {parsed.map((stroke, strokeIndex) => {
+                            const points = stroke
+                              .map((point) => `${point[0] * 16 + 4},${point[1] * 16 + 4}`)
+                              .join(" ");
+                            return (
+                              <Polyline
+                                key={`stroke-${strokeIndex}`}
+                                points={points}
+                                fill="none"
+                                stroke="#364c41"
+                                strokeWidth={1.8}
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              />
+                            );
+                          })}
+                        </Svg>
+                      );
+                    }
+                    if (body.bubbleIconUrl) {
+                      return <Image source={{ uri: body.bubbleIconUrl }} style={styles.iconImage} />;
+                    }
+                    return null;
+                  })()}
                 </View>
               ) : null}
-            </View>
+            </Pressable>
           ))
         : staticLayout.map(({ item, index, width, left, top, rotate }) => (
-            <View
+            <Pressable
               key={`static-${index}-${item.text}`}
+              onPress={() => onBubbleClick?.(item, index)}
               style={[
                 styles.bubble,
                 {
@@ -277,12 +424,40 @@ export function BubblePhysics({
               ]}
             >
               <Text style={styles.bubbleText}>{item.text}</Text>
-              {item.iconUrl ? (
+              {item.iconUrl || item.sketch ? (
                 <View style={styles.iconCircle}>
-                  <Image source={{ uri: item.iconUrl }} style={styles.iconImage} />
+                  {(() => {
+                    const parsed = parseSketchToStrokes(item.sketch);
+                    if (parsed) {
+                      return (
+                        <Svg width={24} height={24} viewBox="0 0 24 24">
+                          {parsed.map((stroke, strokeIndex) => {
+                            const points = stroke
+                              .map((point) => `${point[0] * 16 + 4},${point[1] * 16 + 4}`)
+                              .join(" ");
+                            return (
+                              <Polyline
+                                key={`stroke-${strokeIndex}`}
+                                points={points}
+                                fill="none"
+                                stroke="#364c41"
+                                strokeWidth={1.8}
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              />
+                            );
+                          })}
+                        </Svg>
+                      );
+                    }
+                    if (item.iconUrl) {
+                      return <Image source={{ uri: item.iconUrl }} style={styles.iconImage} />;
+                    }
+                    return null;
+                  })()}
                 </View>
               ) : null}
-            </View>
+            </Pressable>
           ))}
     </View>
   );
@@ -305,25 +480,28 @@ const styles = StyleSheet.create({
   },
   bubble: {
     position: "absolute",
-    backgroundColor: "#364c41",
+    backgroundColor: "#35554b",
     borderRadius: 999,
-    paddingHorizontal: 16,
+    paddingHorizontal: 18,
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 10,
     justifyContent: "center",
   },
   bubbleText: {
-    color: "#ffffff",
-    fontSize: 18,
-    fontWeight: "600",
+    color: "#eef0be",
+    fontSize: 22,
+    fontWeight: "500",
+    letterSpacing: -0.3,
   },
   iconCircle: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: "#ffffff",
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: "#eef0be",
     overflow: "hidden",
+    alignItems: "center",
+    justifyContent: "center",
   },
   iconImage: {
     width: "100%",
