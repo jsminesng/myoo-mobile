@@ -20,8 +20,20 @@ const SCREEN_HEIGHT = Dimensions.get("window").height;
 const BUBBLE_ZONE_HEIGHT = 260;
 const BUBBLE_GAP = 10;
 
+const getBubbleWordFromEntry = (entry: DiaryEntry) => {
+  const savedWord = entry.word?.trim();
+  if (savedWord) return savedWord;
+
+  const notePreview = entry.note?.trim();
+  if (!notePreview) return "";
+
+  const firstLine = notePreview.split("\n")[0]?.trim() || "";
+  if (!firstLine) return "";
+  return firstLine.length > 16 ? `${firstLine.slice(0, 16)}...` : firstLine;
+};
+
 export default function HomeScreen() {
-  const { drop } = useLocalSearchParams<{ drop?: string }>();
+  const { drop, word } = useLocalSearchParams<{ drop?: string; word?: string }>();
   const [name, setName] = useState("there");
   const [entries, setEntries] = useState<DiaryEntry[]>([]);
   const [todayWord, setTodayWord] = useState("");
@@ -29,32 +41,50 @@ export default function HomeScreen() {
   useEffect(() => {
     let mounted = true;
     const load = async () => {
-      const user = await getCurrentUser();
-      if (!user?.id) {
-        router.replace("/auth");
-        return;
+      try {
+        const user = await getCurrentUser();
+        if (!user?.id) {
+          router.replace("/auth");
+          return;
+        }
+        const [profile, diaryEntries] = await Promise.all([
+          getProfile(user.id),
+          getDiaryEntries(),
+        ]);
+        if (!mounted) return;
+        setName(profile?.display_name || user.email?.split("@")[0] || "there");
+        setEntries(diaryEntries);
+      } catch {
+        if (!mounted) return;
+        setEntries([]);
       }
-      const profile = await getProfile(user.id);
-      const diaryEntries = await getDiaryEntries();
-      if (!mounted) return;
-      setName(profile?.display_name || user.email?.split("@")[0] || "there");
-      setEntries(diaryEntries);
     };
     load();
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [drop]);
 
   const bubbleSourceEntries = useMemo(() => {
-    return entries
-      .filter((entry) => Boolean(entry.word?.trim()))
-      .slice(0, 10)
+    const savedEntries = entries
       .map((entry) => ({
         id: entry.id,
-        word: entry.word.trim(),
-      }));
-  }, [entries]);
+        word: getBubbleWordFromEntry(entry),
+      }))
+      .filter((entry) => Boolean(entry.word))
+      .slice(0, 10);
+    const incomingWord = word?.trim();
+    if (!incomingWord) {
+      return savedEntries;
+    }
+
+    const hasIncomingWord = savedEntries.some((entry) => entry.word === incomingWord);
+    if (hasIncomingWord) {
+      return savedEntries;
+    }
+
+    return [{ id: `incoming-${incomingWord}`, word: incomingWord }, ...savedEntries].slice(0, 10);
+  }, [entries, word]);
 
   const bubbleWords = useMemo(() => bubbleSourceEntries.map((entry) => entry.word), [bubbleSourceEntries]);
   const hasTypedWord = todayWord.trim().length > 0;
