@@ -56,10 +56,14 @@ The app follows a client-first mobile architecture:
 
 ### Media Upload Flow
 
-<img src="./screenshots/upload_1.png" alt="Upload Step 1" width="220" />
-<img src="./screenshots/upload_2.png" alt="Upload Step 2" width="220" />
-<img src="./screenshots/upload_3.png" alt="Upload Step 3" width="220" />
-<img src="./screenshots/upload_4.png" alt="Upload Step 4" width="220" />
+<p>
+  <img src="./screenshots/upload_1.png" alt="Upload Step 1" width="220" />
+  <img src="./screenshots/upload_2.png" alt="Upload Step 2" width="220" />
+</p>
+<p>
+  <img src="./screenshots/upload_3.png" alt="Upload Step 3" width="220" />
+  <img src="./screenshots/upload_4.png" alt="Upload Step 4" width="220" />
+</p>
 
 ---
 
