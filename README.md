@@ -1,56 +1,126 @@
-# Welcome to your Expo app 👋
+# MYOO
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+An emotion journaling mobile app where users capture each day with one word, a feeling sketch, notes, and media.
 
-## Get started
 
-1. Install dependencies
+---
 
-   ```bash
-   npm install
-   ```
+## About
 
-2. Start the app
+MYOO was created to make daily reflection simple and expressive. Instead of writing long diary entries every day, users can record their emotional state with lightweight inputs and revisit memories through visual, textual, and media-based layers.
 
-   ```bash
-   npx expo start
-   ```
+---
 
-In the output, you'll find options to open the app in a
+## Features
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+- Email/password authentication with onboarding flow
+- Daily entry flow: word -> feeling sketch -> note -> media
+- Animated layer completion experience after saving an entry
+- Home bubble view for browsing saved entries
+- Entry detail page with media rendering and retry-safe URL handling
+- AI chat assistant powered by diary context
+- Profile editing, including custom MYOO sketch and password updates
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+---
 
-## Get a fresh project
+## Tech Stack
 
-When you're ready, run:
+- Frontend: Expo 56, React Native 0.85, React 19, Expo Router
+- Backend: Supabase Auth, Supabase Edge Functions
+- Database: Supabase Postgres with Row Level Security
+- Cloud: Supabase Storage for image/video uploads
 
-```bash
-npm run reset-project
+---
+
+## Architecture
+
+The app follows a client-first mobile architecture:
+
+- Expo React Native app handles UI, navigation, and input flows.
+- Supabase manages authentication, database access, and storage.
+- An Edge Function (`diary-chat`) calls Gemini for contextual AI responses.
+
+![MYOO Architecture](./screenshots/myoo_architecture.png)
+
+---
+
+## Screenshots
+
+### Home
+
+![MYOO Home Screen](./screenshots/home.png)
+
+### AI Chat
+
+![MYOO AI Chat](./screenshots/AI_chat.png)
+
+### Media Upload Flow
+
+![Upload Step 1](./screenshots/upload_1.png)
+![Upload Step 2](./screenshots/upload_2.png)
+![Upload Step 3](./screenshots/upload_3.png)
+![Upload Step 4](./screenshots/upload_4.png)
+
+---
+
+## Folder Structure
+
+```text
+myoo/
+├── src/
+│   ├── app/          # Route-based screens
+│   ├── components/   # Reusable UI components
+│   ├── services/     # Supabase and app service layer
+│   ├── utils/        # Utility functions
+│   └── hooks/        # Custom hooks
+├── assets/           # Static assets
+├── supabase/         # Schema and Edge Functions
+└── PROJECT_DOCUMENTATION.md
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+---
 
-### Other setup steps
+## Installation
 
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
+1. Install dependencies.
 
-## Learn more
+```bash
+npm install
+```
 
-To learn more about developing your project with Expo, look at the following resources:
+2. Add environment variables in `.env`.
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial for building Expo apps.
+```bash
+EXPO_PUBLIC_SUPABASE_URL=your_supabase_url
+EXPO_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+EXPO_PUBLIC_SUPABASE_MEDIA_BUCKET=diary-media
+```
 
-## Join the community
+3. Start the Expo development server.
 
-Join our community of developers creating universal apps.
+```bash
+npm start
+```
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+4. Configure backend resources:
+- Apply `supabase/schema.sql`
+- Create the media bucket (`diary-media` or your custom bucket)
+- Deploy `supabase/functions/diary-chat` and set `GEMINI_API_KEY`
+
+---
+
+## Challenges
+
+- Designing a smooth multi-step journaling flow without overwhelming users
+- Handling sketch data consistently across multiple screens
+- Managing reliable media access with signed/public URL fallback logic
+- Improving AI response quality with minimal but effective diary context
+
+---
+
+## Improvements
+
+- Consolidate duplicated sketch parsing logic into shared utilities
+- Expand test coverage for service and route-level flows
+- Replace placeholder template routes with product-specific screens
+- Add richer analytics and personalized reflection insights
