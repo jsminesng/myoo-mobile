@@ -40,7 +40,7 @@ The app follows a client-first mobile architecture:
 - Supabase manages authentication, database access, and storage.
 - An Edge Function (`diary-chat`) calls Gemini for contextual AI responses.
 
-![MYOO Architecture](./screenshots/myoo_architecture.png)
+<img src="./screenshots/myoo_architecture.png" alt="MYOO Architecture" width="900" />
 
 ---
 
@@ -48,18 +48,18 @@ The app follows a client-first mobile architecture:
 
 ### Home
 
-![MYOO Home Screen](./screenshots/home.png)
+<img src="./screenshots/home.png" alt="MYOO Home Screen" width="280" />
 
 ### AI Chat
 
-![MYOO AI Chat](./screenshots/AI_chat.png)
+<img src="./screenshots/AI_chat.png" alt="MYOO AI Chat" width="280" />
 
 ### Media Upload Flow
 
-![Upload Step 1](./screenshots/upload_1.png)
-![Upload Step 2](./screenshots/upload_2.png)
-![Upload Step 3](./screenshots/upload_3.png)
-![Upload Step 4](./screenshots/upload_4.png)
+<img src="./screenshots/upload_1.png" alt="Upload Step 1" width="220" />
+<img src="./screenshots/upload_2.png" alt="Upload Step 2" width="220" />
+<img src="./screenshots/upload_3.png" alt="Upload Step 3" width="220" />
+<img src="./screenshots/upload_4.png" alt="Upload Step 4" width="220" />
 
 ---
 
