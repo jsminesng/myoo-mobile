@@ -2,7 +2,6 @@
 
 An emotion journaling mobile app where users capture each day with one word, a feeling sketch, notes, and media.
 
-
 ---
 
 ## About
@@ -32,7 +31,7 @@ MYOO was created to make daily reflection simple and expressive. Instead of writ
 
 ---
 
-## Architecture
+## System Architecture
 
 The app follows a client-first mobile architecture:
 
@@ -40,7 +39,19 @@ The app follows a client-first mobile architecture:
 - Supabase manages authentication, database access, and storage.
 - An Edge Function (`diary-chat`) calls Gemini for contextual AI responses.
 
-<img src="./screenshots/myoo_architecture.png" alt="MYOO Architecture" width="900" />
+<img src="./screenshots/architecture_myoo.png" alt="MYOO System Architecture" width="900" />
+
+---
+
+## ERD
+
+<img src="./screenshots/erd.png" alt="MYOO ERD" width="900" />
+
+---
+
+## System Flow
+
+<img src="./screenshots/myoo_system_flow.png" alt="MYOO System Flow" width="900" />
 
 ---
 
@@ -107,6 +118,7 @@ npm start
 ```
 
 4. Configure backend resources:
+
 - Apply `supabase/schema.sql`
 - Create the media bucket (`diary-media` or your custom bucket)
 - Deploy `supabase/functions/diary-chat` and set `GEMINI_API_KEY`
